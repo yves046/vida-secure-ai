@@ -27,8 +27,8 @@ if "paid" not in st.session_state:
         else:
             with st.spinner("Redirection sécurisée vers Stripe..."):
                 try:
-                    r = requests.post(
-                       "https://vida-backend-2025.onrender.com/create-checkout-session",
+                    response = requests.post(
+    "https://stripe-backend-vida.onrender.com/create-checkout-session",,
                         json={"email": email.strip()},
                         timeout=15
                     )
