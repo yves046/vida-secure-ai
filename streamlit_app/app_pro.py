@@ -28,7 +28,7 @@ if "paid" not in st.session_state:
             with st.spinner("Redirection sécurisée vers Stripe..."):
                 try:
                     r = requests.post(
-                        "https://vida-secure-backend-temp.up.railway.app/create-checkout-session",
+                       "http://localhost:8000/create-checkout-session",
                         json={"email": email.strip()},
                         timeout=15
                     )
