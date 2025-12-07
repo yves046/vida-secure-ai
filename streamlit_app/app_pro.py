@@ -1,27 +1,51 @@
+# streamlit_app/app_pro.py
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Vida Secure AI", layout="centered")
-st.title("🔒 Vida Secure AI – Abonnement Pro")
+st.set_page_config(page_title="Vida Secure AI – Pro", layout="centered")
+
+st.title("Vida Secure AI – Abonnement Pro")
 st.markdown("### Surveillance intelligente 24/7 – 79 €/mois")
 
-if "paid" not in st.session_state:
-    st.info("Débloquez l'accès complet en 10 secondes")
-    if st.button("Payer 79 €/mois avec Stripe", type="primary"):
-        with st.spinner("Redirection vers Stripe..."):
-            try:
-                r = requests.post("http://localhost:8000/create-checkout-session", 
-                                json={"user_id": "demo"})
-                st.session_state.checkout_url = r.json()["url"]
-            except:
-                st.session_state.checkout_url = "https://buy.stripe.com/test_..."  # lien test
-        st.success("Redirection...")
-        st.markdown(f"[Payer maintenant →]({st.session_state.checkout_url})")
-else:
-    st.success("✅ Accès Premium activé – Bienvenue !")
+# Retour de paiement
+if st.query_params.get("success") == "true":
+    st.success("Paiement réussi ! Bienvenue dans Vida Secure Pro")
     st.balloons()
-    
-    rtsp = st.text_input("RTSP ou IP caméra", "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4")
+    st.session_state.paid = True
+
+if st.query_params.get("cancel") == "true":
+    st.warning("Paiement annulé – tu peux réessayer")
+
+# Page de paiement
+if "paid" not in st.session_state:
+    st.markdown("#### Abonnement mensuel – résiliable à tout moment")
+    email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
+
+    if st.button("Payer 79 €/mois avec Stripe", type="primary", use_container_width=True):
+        if not email.strip():
+            st.error("Entre ton email")
+        else:
+            with st.spinner("Redirection sécurisée vers Stripe..."):
+                try:
+                    r = requests.post(
+                        "https://vida-secure-backend-temp.up.railway.app/create-checkout-session",
+                        json={"email": email.strip()},
+                        timeout=15
+                    )
+                    data = r.json()
+                    if "url" in data:
+                        st.markdown(f'<meta http-equiv="refresh" content="0; url={data["url"]}">', 
+                                  unsafe_allow_html=True)
+                    else:
+                        st.error(f"Erreur Stripe : {data.get('error')}")
+                except:
+                    st.error("Serveur temporaire – reviens dans 2 min")
+
+# Accès Premium
+else:
+    st.success("Accès Premium activé !")
+    rtsp = st.text_input("URL RTSP de ta caméra", 
+                         value="rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov")
     if st.button("Lancer la surveillance"):
         st.video(rtsp)
-        st.write("Détection IA activée (intrus, sacs abandonnés, etc.)")
+        st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
