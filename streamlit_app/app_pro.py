@@ -27,7 +27,7 @@ if "paid" not in st.session_state:
         else:
             with st.spinner("Redirection sécurisée vers Stripe..."):
                 try:
-                    r = requests.post( "https://vida-secure-backend-2025.onrender.com/create-checkout-session",
+                    r = requests.post( "https://vida-secure-ai.vercel.app/create-checkout-session",,
                         json={"email": email.strip()},
                         timeout=15
                     )
