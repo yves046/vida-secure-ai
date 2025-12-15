@@ -25,21 +25,30 @@ if "paid" not in st.session_state:
         if not email.strip():
             st.error("Entre ton email")
         else:
-            with st.spinner("Redirection sécurisée vers Stripe..."):
+            with st.spinner("Préparation du paiement sécurisé..."):
                 try:
-                    r = requests.post (
-    "https://vida-secure-ai-2.onrender.com/create-checkout-session",
-    json={"email": email.strip()},
-    timeout=15
+                    r = requests.post(
+                        "https://vida-secure-ai-2.onrender.com/create-checkout-session",
+                        json={"email": email.strip()},
+                        timeout=15
                     )
+
                     data = r.json()
+
                     if "url" in data:
-                        st.markdown(f'<meta http-equiv="refresh" content="0; url={data["url"]}">', 
-                                  unsafe_allow_html=True)
+                        st.success("Paiement prêt ✅")
+
+                        st.link_button(
+                            "👉 Continuer vers le paiement sécurisé Stripe",
+                            data["url"],
+                            use_container_width=True
+                        )
                     else:
                         st.error(f"Erreur Stripe : {data.get('error')}")
-                except:
+
+                except Exception as e:
                     st.error("Serveur temporaire – reviens dans 2 min")
+
 
 # Accès Premium
 else:
