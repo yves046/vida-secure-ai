@@ -19,36 +19,40 @@ if st.query_params.get("cancel") == "true":
 # Page de paiement
 if "paid" not in st.session_state:
     st.markdown("#### Abonnement mensuel – résiliable à tout moment")
-
-    # ✅ MESSAGE MOBILE ICI ⬇️
-    st.warning("📱 Sur téléphone, ouvre le paiement dans ton navigateur si besoin")
-
-    email = st.text_input(
-        "Ton email (pour la facture)",
-        placeholder="jean@exemple.com"
-    )
+    email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
 
     if st.button("Payer 79 €/mois avec Stripe", type="primary", use_container_width=True):
         if not email.strip():
             st.error("Entre ton email")
         else:
-            with st.spinner("Redirection sécurisée vers Stripe..."):
-                try:
-                    r = requests.post(
-                        "https://vida-secure-ai-2.onrender.com/create-checkout-session",
-                        json={"email": email.strip()},
-                        timeout=15
+            st.info("Connexion au paiement sécurisé…")
+
+            try:
+                r = requests.post(
+                    "https://vida-secure-ai-2.onrender.com/create-checkout-session",
+                    json={"email": email.strip()},
+                    timeout=20
+                )
+
+                data = r.json()
+
+                if "url" in data:
+                    st.success("👉 Appuie sur le bouton ci-dessous pour payer")
+
+                    st.link_button(
+                        "Continuer vers le paiement sécurisé Stripe",
+                        data["url"],
+                        use_container_width=True
                     )
-                    data = r.json()
-                    if "url" in data:
-                        st.markdown(
-                            f'<meta http-equiv="refresh" content="0; url={data["url"]}">',
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.error(f"Erreur Stripe : {data.get('error')}")
-                except:
-                    st.error("Serveur temporaire – reviens dans 2 min")
+
+                    st.caption("Si le bouton ne s’ouvre pas, copie ce lien et ouvre-le dans ton navigateur 👇")
+                    st.code(data["url"])
+
+                else:
+                    st.error(f"Erreur Stripe : {data.get('error')}")
+
+            except:
+                st.error("Le serveur met un peu de temps à répondre, réessaie dans un instant")
 
 
 
