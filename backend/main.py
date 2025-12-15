@@ -1,56 +1,38 @@
-# backend/main.py
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from flask import Flask, request, jsonify
 import stripe
 import os
 
-# === Création de l'app FastAPI ===
-app = FastAPI(title="Vida Secure AI – Backend")
+app = Flask(__name__)
 
-# === CORS : autorise Streamlit (local + déployé) à appeler le backend ===
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],                    # En prod tu peux restreindre, mais pour le sprint → "*"
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Clé Stripe (depuis les variables d'environnement)
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
-# === Clé secrète Stripe (prise dans les variables d’environnement) ===
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-if not stripe.api_key:
-    raise RuntimeError("Variable d’environnement STRIPE_SECRET_KEY manquante !")
+@app.route("/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "Email manquant"}), 400
 
-# === ID du prix que tu vas créer dans le Dashboard Stripe (79 €/mois récurrent) ===
-STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "price_123456789")  # tu le changeras dans 2 minutes
-
-# === Endpoint qui crée la session de paiement Stripe ===
-@app.post("/create-checkout-session")
-async def create_checkout_session(request: Request):
     try:
-        data = await request.json()
-        email = data.get("email", "").strip()
-
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
-            customer_email=email if email else None,
-            line_items=[
-                {
-                    "price": STRIPE_PRICE_ID,
-                    "quantity": 1,
-                }
-            ],
-            mode="subscription",   # abonnement mensuel
-            success_url="https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
-            cancel_url="https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true",
-            metadata={"source": "vida-secure-ai"},
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {"name": "Vida Secure AI – Abonnement Pro"},
+                    "unit_amount": 7900,  # 79 € en centimes
+                },
+                "quantity": 1,
+            }],
+            mode="subscription",
+            success_url="http://localhost:8501/?success=true",
+            cancel_url="http://localhost:8501/?cancel=true",
+            customer_email=email
         )
-        return {"url": session.url}
-
+        return jsonify({"url": session.url})
     except Exception as e:
-        return {"error": str(e)}
+        return jsonify({"error": str(e)}), 500
 
-# === Pour tester que le backend tourne bien ===
-@app.get("/api/health")
-def health():
-    return {"status": "alive", "time": __import__('datetime').datetime.now().isoformat()}
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
