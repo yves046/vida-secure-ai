@@ -26,7 +26,7 @@ if "paid" not in st.session_state:
             st.error("Entre ton email")
         else:
            st.info("Connexion au paiement sécurisé…")
-                try:
+                    try:
                     r = requests.post(
                         "https://vida-secure-ai-2.onrender.com/create-checkout-session",
                         json={"email": email.strip()},
@@ -46,7 +46,7 @@ if "paid" not in st.session_state:
                     else:
                         st.error(f"Erreur Stripe : {data.get('error')}")
 
-                except Exception as e:
+                  except Exception as e:
                     st.error("Serveur temporaire – reviens dans 2 min")
 
 
