@@ -24,21 +24,18 @@ async def create_checkout_session(req: Request):
         return {"error": "Email manquant"}
 
     try:
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": "eur",
-                    "product_data": {"name": "Vida Secure AI – Abonnement Pro"},
-                    "unit_amount": 7900,  # 79 € en centimes
-                },
-                "quantity": 1,
-            }],
-            mode="subscription",
-            success_url="https://ton-frontend-streamlit.com/?success=true",
-            cancel_url="https://ton-frontend-streamlit.com/?cancel=true",
-            customer_email=email
-        )
+session = stripe.checkout.Session.create(
+    payment_method_types=["card"],
+    line_items=[{
+        "price": "price_1SXzBsD9hkGY8XoHD5yLibWP",  # le Price ID créé dans Stripe
+        "quantity": 1,
+    }],
+    mode="subscription",
+    success_url="https://ton-frontend-streamlit.com/?success=true",
+    cancel_url="https://ton-frontend-streamlit.com/?cancel=true",
+    customer_email=email
+)
+
         return {"url": session.url}
     except Exception as e:
         return {"error": str(e)}
