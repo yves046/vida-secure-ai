@@ -18,26 +18,28 @@ if st.query_params.get("cancel") == "true":
 
 # Page de paiement
 if "paid" not in st.session_state:
-    st.markdown("#### Abonnement mensuel – résiliable à tout moment")
-    email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
+   import streamlit as st
+import requests
 
-    if st.button("Payer 79 €/mois avec Stripe", type="primary", use_container_width=True):
-        if not email.strip():
-            st.error("Entre ton email")
-        else:
-            st.info("Connexion au paiement sécurisé…")
+st.set_page_config(page_title="Vida Secure AI – Pro", layout="centered")
 
-            try:
-                r = requests.post(
-                    "https://vida-secure-ai-2.onrender.com/create-checkout-session",
-                    json={"email": email.strip()},
-                    timeout=20
-                )
+st.title("Vida Secure AI – Abonnement Pro")
+st.markdown("### Surveillance intelligente 24/7 – 79 €/mois")
 
-                data = r.json()
+# Retour de paiement
+if st.query_params.get("success") == "true":
+    st.success("Paiement réussi ! Bienvenue dans Vida Secure Pro")
+    st.session_state.paid = True
 
-                if "url" in data:
-                    st.success("👉 Appuie sur le bouton ci-dessous pour payer")
+if st.query_params.get("cancel") == "true":
+    st.warning("Paiement annulé – tu peux réessayer")
+
+# 👇 ICI TU COLLES LE CODE FINAL MOBILE
+if "paid" not in st.session_state:
+    # ⬅️ CODE FINAL QUE JE T’AI DONNÉ
+    ...
+else:
+    st.success("Accès Premium activé !")
 
                     st.link_button(
                         "Continuer vers le paiement sécurisé Stripe",
