@@ -19,35 +19,37 @@ if st.query_params.get("cancel") == "true":
 # Page de paiement
 if "paid" not in st.session_state:
     st.markdown("#### Abonnement mensuel – résiliable à tout moment")
-    email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
+
+    # ✅ MESSAGE MOBILE ICI ⬇️
+    st.warning("📱 Sur téléphone, ouvre le paiement dans ton navigateur si besoin")
+
+    email = st.text_input(
+        "Ton email (pour la facture)",
+        placeholder="jean@exemple.com"
+    )
 
     if st.button("Payer 79 €/mois avec Stripe", type="primary", use_container_width=True):
         if not email.strip():
             st.error("Entre ton email")
         else:
-            with st.spinner("Préparation du paiement sécurisé..."):
+            with st.spinner("Redirection sécurisée vers Stripe..."):
                 try:
                     r = requests.post(
                         "https://vida-secure-ai-2.onrender.com/create-checkout-session",
                         json={"email": email.strip()},
                         timeout=15
                     )
-
                     data = r.json()
-
                     if "url" in data:
-                        st.success("Paiement prêt ✅")
-
-                        st.link_button(
-                            "👉 Continuer vers le paiement sécurisé Stripe",
-                            data["url"],
-                            use_container_width=True
+                        st.markdown(
+                            f'<meta http-equiv="refresh" content="0; url={data["url"]}">',
+                            unsafe_allow_html=True
                         )
                     else:
                         st.error(f"Erreur Stripe : {data.get('error')}")
-
-                except Exception as e:
+                except:
                     st.error("Serveur temporaire – reviens dans 2 min")
+
 
 
 # Accès Premium
