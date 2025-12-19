@@ -26,7 +26,15 @@ def creer_paiement(montant, description="Abonnement Pro"):
         "items": [{"name": description, "quantity": 1, "unit_price": montant}]
     }
     response = requests.post(url, json=payload, headers=headers)
-    return response.json()
+
+    # 🔍 DEBUG : afficher la réponse brute pour comprendre l’erreur
+    try:
+        return response.json()
+    except Exception as e:
+        st.error(f"Erreur PayDunya : impossible de parser la réponse JSON")
+        st.text(response.text)  # Affiche le message exact renvoyé par PayDunya
+        return {}
+
 
 # 2️⃣ Gestion du retour de paiement
 if st.query_params.get("success") == "true":
