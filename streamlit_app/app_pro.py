@@ -8,7 +8,7 @@ st.set_page_config(page_title="Vida Secure AI – Pro", layout="centered")
 st.title("Vida Secure AI – Abonnement Pro")
 st.markdown("### Surveillance intelligente 24/7 – 79 €/mois")
 
-# 🔑 Récupération des clés PayDunya depuis Render
+# 🔑 Récupération des clés PayDunya depuis Render (production)
 PAYDUNYA_TOKEN = os.environ.get("PAYDUNYA_TOKEN")
 
 # 1️⃣ Fonction pour créer une facture PayDunya
@@ -22,20 +22,25 @@ def creer_paiement(montant, description="Abonnement Pro"):
         "amount": montant,
         "name": description,
         "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?success=true",
-"cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?cancel=true"
-        
-        "items": [{"name": description, "quantity": 1, "unit_price": montant}]
+        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?cancel=true",
+        "items": [
+            {
+                "name": description,
+                "quantity": 1,
+                "unit_price": montant
+            }
+        ]
     }
+
     response = requests.post(url, json=payload, headers=headers)
 
-    # 🔍 DEBUG : afficher la réponse brute pour comprendre l’erreur
+    # 🔍 Debug / afficher la réponse si erreur
     try:
         return response.json()
     except Exception as e:
-        st.error(f"Erreur PayDunya : impossible de parser la réponse JSON")
-        st.text(response.text)  # Affiche le message exact renvoyé par PayDunya
+        st.error("Impossible de parser la réponse JSON de PayDunya")
+        st.text(response.text)
         return {}
-
 
 # 2️⃣ Gestion du retour de paiement
 if st.query_params.get("success") == "true":
@@ -51,7 +56,7 @@ if "paid" not in st.session_state:
     st.markdown("#### Abonnement mensuel – résiliable à tout moment")
     email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
 
-    # 🔹 Bouton Stripe existant
+    # 🔹 Bouton Stripe
     if st.button("Payer 79 €/mois avec Stripe", type="primary", use_container_width=True):
         if not email.strip():
             st.error("Entre ton email")
@@ -76,11 +81,10 @@ if "paid" not in st.session_state:
                 except Exception as e:
                     st.error("Serveur temporaire – reviens dans 2 min")
 
-    # 🔹 Bouton PayDunya (Wave/Orange/MTN) avec redirection automatique
+    # 🔹 Bouton PayDunya avec redirection automatique
     if st.button("Payer maintenant avec Wave / Orange / MTN"):
         paiement = creer_paiement(79)
         if paiement.get("status") == "success":
-            # Redirection automatique via HTML/JS
             invoice_url = paiement['invoice_url']
             st.markdown(f"""
                 <script>
