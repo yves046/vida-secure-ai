@@ -21,8 +21,8 @@ def creer_paiement(montant, description="Abonnement Pro"):
     payload = {
         "amount": montant,
         "name": description,
-        "callback_url": "https://vida-secure-ai-2.onrender.com?success=true",
-        "cancel_url": "https://vida-secure-ai-2.onrender.com?cancel=true",
+        "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?success=true",
+"cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?cancel=true"
         "items": [{"name": description, "quantity": 1, "unit_price": montant}]
     }
     response = requests.post(url, json=payload, headers=headers)
