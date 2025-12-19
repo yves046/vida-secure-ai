@@ -6,6 +6,10 @@ app = Flask(__name__)
 
 # Clé Stripe (depuis les variables d'environnement)
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+PAYDUNYA_MASTER_KEY = os.getenv("PAYDUNYA_MASTER_KEY")
+PAYDUNYA_PUBLIC_KEY = os.getenv("PAYDUNYA_PUBLIC_KEY")
+PAYDUNYA_PRIVATE_KEY = os.getenv("PAYDUNYA_PRIVATE_KEY")
+PAYDUNYA_TOKEN = os.getenv("PAYDUNYA_TOKEN")
 
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
@@ -36,3 +40,36 @@ def create_checkout_session():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+import requests
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.post("/create-payment")
+def create_payment():
+    url = "https://app.paydunya.com/api/v1/checkout-invoice/create"
+
+    headers = {
+        "Content-Type": "application/json",
+        "PAYDUNYA-MASTER-KEY": PAYDUNYA_MASTER_KEY,
+        "PAYDUNYA-PRIVATE-KEY": PAYDUNYA_PRIVATE_KEY,
+        "PAYDUNYA-TOKEN": PAYDUNYA_TOKEN
+    }
+
+    payload = {
+        "invoice": {
+            "total_amount": 79,
+            "description": "Abonnement Vida Secure AI - 1 mois"
+        },
+        "store": {
+            "name": "Vida Secure AI"
+        },
+        "actions": {
+            "callback_url": "https://TON-BACKEND.onrender.com/payment-callback",
+            "return_url": "https://TON-SITE.streamlit.app/success",
+            "cancel_url": "https://TON-SITE.streamlit.app/cancel"
+        }
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    return response.json()
