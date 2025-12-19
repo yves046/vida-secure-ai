@@ -67,11 +67,18 @@ if "paid" not in st.session_state:
                 except Exception as e:
                     st.error("Serveur temporaire – reviens dans 2 min")
 
-    # 🔹 Bouton PayDunya (Wave/Orange/MTN)
+    # 🔹 Bouton PayDunya (Wave/Orange/MTN) avec redirection automatique
     if st.button("Payer maintenant avec Wave / Orange / MTN"):
-        paiement = creer_paiement(79)  # Montant en euros ou FCFA
+        paiement = creer_paiement(79)
         if paiement.get("status") == "success":
-            st.markdown(f"[👉 Continuer vers le paiement sécurisé]({paiement['invoice_url']})")
+            # Redirection automatique via HTML/JS
+            invoice_url = paiement['invoice_url']
+            st.markdown(f"""
+                <script>
+                    window.location.href = "{invoice_url}";
+                </script>
+                <p>Si tu n'es pas automatiquement redirigé, <a href="{invoice_url}">clique ici pour payer</a>.</p>
+            """, unsafe_allow_html=True)
         else:
             st.error("Erreur lors de la création du paiement")
 
@@ -85,4 +92,3 @@ else:
     if st.button("Lancer la surveillance"):
         st.video(rtsp)
         st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
-
