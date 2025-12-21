@@ -95,7 +95,8 @@ if "paid" not in st.session_state:
     # 🔹 Bouton PayDunya avec redirection automatique
     if st.button("Payer maintenant avec Wave / Orange / MTN"):
         paiement = creer_paiement(79)
-        if paiement and paiement.get("response_code") == "00":
+
+if paiement and paiement.get("response_code") == "00":
     invoice_url = paiement["response_text"]
     st.markdown(
         f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
