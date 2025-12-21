@@ -2,10 +2,49 @@ import os
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="Vida Secure AI – Pro", layout="centered")
+# =========================
+# CONFIGURATION PAGE
+# =========================
+st.set_page_config(
+    page_title="Vida Secure AI – Pro",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
+# Style CSS pour fond clair et look pro
+st.markdown("""
+<style>
+body {
+    background-color: #f5f5f5;
+    color: #222;
+}
+.stButton>button {
+    background-color: #4CAF50;
+    color: white;
+    font-size: 16px;
+    padding: 10px;
+    border-radius: 8px;
+}
+.stTextInput>div>input {
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+}
+h1, h2, h3, h4 {
+    color: #222;
+}
+.stMarkdown p {
+    font-size: 16px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
+# TITRE
+# =========================
 st.title("Vida Secure AI – Abonnement Pro")
 st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
+st.markdown("### Paiement sécurisé")
 
 # =========================
 # PAYDUNYA – FACTURE
@@ -21,29 +60,16 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
     }
 
     payload = {
-        "invoice": {
-            "total_amount": montant,
-            "description": description
-        },
-        "store": {
-            "name": "Vida Secure AI"
-        },
+        "invoice": {"total_amount": montant, "description": description},
+        "store": {"name": "Vida Secure AI"},
         "actions": {
             "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
             "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true"
         },
-        "items": [
-            {
-                "name": description,
-                "quantity": 1,
-                "unit_price": montant,
-                "total_price": montant
-            }
-        ]
+        "items": [{"name": description, "quantity": 1, "unit_price": montant, "total_price": montant}]
     }
 
     response = requests.post(url, json=payload, headers=headers, timeout=20)
-
     try:
         return response.json()
     except:
@@ -51,9 +77,8 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
         st.text(response.text)
         return None
 
-
 # =========================
-# RETOUR DE PAIEMENT
+# RETOUR PAIEMENT
 # =========================
 if st.query_params.get("success") == "true":
     st.success("Paiement réussi 🎉 Bienvenue dans Vida Secure Pro")
@@ -63,13 +88,12 @@ if st.query_params.get("cancel") == "true":
     st.warning("Paiement annulé")
 
 # =========================
-# PAGE PAIEMENT
+# PAGE ABONNEMENT
 # =========================
 if "paid" not in st.session_state:
-
     email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
 
-    # 🔵 STRIPE (CARTE BANCAIRE)
+    # 🔵 Stripe (carte bancaire)
     if st.button("Payer 79 € par carte (Stripe)", use_container_width=True):
         if not email.strip():
             st.error("Entre ton email")
@@ -92,11 +116,10 @@ if "paid" not in st.session_state:
 
     st.divider()
 
-    # 🟠 PAYDUNYA (MOBILE MONEY)
+    # 🟠 PayDunya (Mobile Money)
     if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
         with st.spinner("Redirection vers PayDunya..."):
             paiement = creer_paiement_paydunya(79)
-
             if paiement and paiement.get("response_code") == "00":
                 invoice_url = paiement["response_text"]
                 st.markdown(
@@ -117,4 +140,4 @@ else:
     )
     if st.button("Lancer la surveillance"):
         st.video(rtsp)
-        st.write("Détection IA active")
+        st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
