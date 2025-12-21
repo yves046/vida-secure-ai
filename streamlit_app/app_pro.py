@@ -14,33 +14,44 @@ PAYDUNYA_TOKEN = os.environ.get("PAYDUNYA_TOKEN")
 # 1️⃣ Fonction pour créer une facture PayDunya
 def creer_paiement(montant, description="Abonnement Pro"):
     url = "https://app.paydunya.com/api/checkout-invoice/create"
+
     headers = {
-        "Authorization": f"Bearer {PAYDUNYA_TOKEN}",
+        "PAYDUNYA-MASTER-KEY": os.environ.get("PAYDUNYA_MASTER_KEY"),
+        "PAYDUNYA-PRIVATE-KEY": os.environ.get("PAYDUNYA_PRIVATE_KEY"),
+        "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN"),
         "Content-Type": "application/json"
     }
+
     payload = {
-        "amount": montant,
-        "name": description,
-        "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?success=true",
-        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?cancel=true",
+        "invoice": {
+            "total_amount": montant,
+            "description": description
+        },
+        "store": {
+            "name": "Vida Secure AI"
+        },
+        "actions": {
+            "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?success=true",
+            "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app?cancel=true"
+        },
         "items": [
             {
                 "name": description,
                 "quantity": 1,
-                "unit_price": montant
+                "unit_price": montant,
+                "total_price": montant
             }
         ]
     }
 
     response = requests.post(url, json=payload, headers=headers)
 
-    # 🔍 Debug / afficher la réponse si erreur
-    try:
-        return response.json()
-    except Exception as e:
-        st.error("Impossible de parser la réponse JSON de PayDunya")
+    if response.status_code != 200:
+        st.error("Erreur PayDunya (HTTP)")
         st.text(response.text)
-        return {}
+        return None
+
+    return response.json()
 
 # 2️⃣ Gestion du retour de paiement
 if st.query_params.get("success") == "true":
@@ -84,16 +95,15 @@ if "paid" not in st.session_state:
     # 🔹 Bouton PayDunya avec redirection automatique
     if st.button("Payer maintenant avec Wave / Orange / MTN"):
         paiement = creer_paiement(79)
-        if paiement.get("status") == "success":
-            invoice_url = paiement['invoice_url']
-            st.markdown(f"""
-                <script>
-                    window.location.href = "{invoice_url}";
-                </script>
-                <p>Si tu n'es pas automatiquement redirigé, <a href="{invoice_url}">clique ici pour payer</a>.</p>
-            """, unsafe_allow_html=True)
-        else:
-            st.error("Erreur lors de la création du paiement")
+        if paiement and paiement.get("response_code") == "00":
+    invoice_url = paiement["response_text"]
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
+        unsafe_allow_html=True
+    )
+else:
+    st.error("Création de facture PayDunya échouée")
+
 
 # 4️⃣ Accès Premium si déjà payé
 else:
