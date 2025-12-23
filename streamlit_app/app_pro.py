@@ -60,27 +60,22 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
     }
 
     payload = {
-        "invoice": {
-            "total_amount": montant, 
-            "description": "Abonnement Vida Secure AI pro"
-        },
-        "store": {
-            "name": "Vida Secure AI"
-        },
+        "invoice": {"total_amount": montant, "description": description},
+        "store": {"name": "Vida Secure AI"},
         "actions": {
             "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
             "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true"
-        }
+        },
+        "items": [{"name": description, "quantity": 1, "unit_price": montant, "total_price": montant}]
     }
 
-    response = requests.post(url, json=payload, headers=headers)
-    
+    response = requests.post(url, json=payload, headers=headers, timeout=20)
     try:
         return response.json()
     except:
-        st.error("PayDunna a envoyé une page HTML (mauvaise config)")
+        st.error("Réponse PayDunya invalide")
         st.text(response.text)
-        return {}
+        return None
 
 # =========================
 # RETOUR PAIEMENT
