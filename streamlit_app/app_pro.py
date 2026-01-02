@@ -130,7 +130,7 @@ if "paid" not in st.session_state:
                 st.error("Erreur lors de la création du paiement PayDunya")
 
     st.divider()
-
+   
     # 🔴 Paiement hors ligne (liquide / RDV)
     if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
         st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
