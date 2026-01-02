@@ -11,31 +11,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Style CSS pour fond clair et look pro
+# Style CSS
 st.markdown("""
 <style>
-body {
-    background-color: #f5f5f5;
-    color: #222;
-}
-.stButton>button {
-    background-color: #4CAF50;
-    color: white;
-    font-size: 16px;
-    padding: 10px;
-    border-radius: 8px;
-}
-.stTextInput>div>input {
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 14px;
-}
-h1, h2, h3, h4 {
-    color: #222;
-}
-.stMarkdown p {
-    font-size: 16px;
-}
+body { background-color: #f5f5f5; color: #222; }
+.stButton>button { background-color: #4CAF50; color: white; font-size: 16px; padding: 10px; border-radius: 8px; }
+.stTextInput>div>input { border-radius: 6px; padding: 8px; font-size: 14px; }
+h1, h2, h3, h4 { color: #222; }
+.stMarkdown p { font-size: 16px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,14 +34,12 @@ st.markdown("### Paiement sécurisé")
 # =========================
 def creer_paiement_paydunya(montant, description="Abonnement Pro"):
     url = "https://app.paydunya.com/api/checkout-invoice/create"
-
     headers = {
         "PAYDUNYA-MASTER-KEY": os.environ.get("PAYDUNYA_MASTER_KEY"),
         "PAYDUNYA-PRIVATE-KEY": os.environ.get("PAYDUNYA_PRIVATE_KEY"),
         "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN"),
         "Content-Type": "application/json"
     }
-
     payload = {
         "invoice": {"total_amount": montant, "description": description},
         "store": {"name": "Vida Secure AI"},
@@ -68,7 +49,6 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
         },
         "items": [{"name": description, "quantity": 1, "unit_price": montant, "total_price": montant}]
     }
-
     response = requests.post(url, json=payload, headers=headers, timeout=20)
     try:
         return response.json()
@@ -83,7 +63,6 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
 if st.query_params.get("success") == "true":
     st.success("Paiement réussi 🎉 Bienvenue dans Vida Secure Pro")
     st.session_state.paid = True
-
 if st.query_params.get("cancel") == "true":
     st.warning("Paiement annulé")
 
@@ -93,7 +72,7 @@ if st.query_params.get("cancel") == "true":
 if "paid" not in st.session_state:
     email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
 
-    # 🔵 Stripe (carte bancaire)
+    # 🔵 Stripe
     if st.button("Payer 79 € par carte (Stripe)", use_container_width=True):
         if not email.strip():
             st.error("Entre ton email")
@@ -106,31 +85,25 @@ if "paid" not in st.session_state:
                 )
                 data = r.json()
                 if "url" in data:
-                    st.link_button(
-                        "👉 Continuer vers le paiement sécurisé Stripe",
-                        data["url"],
-                        use_container_width=True
-                    )
+                    st.link_button("👉 Continuer vers le paiement sécurisé Stripe", data["url"], use_container_width=True)
                 else:
                     st.error("Erreur Stripe")
 
     st.divider()
 
-# 🟠 PayDunya (Mobile Money)
-     if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
-         with st.spinner("Redirection vers PayDunya..."):
-             paiement = creer_paiement_paydunya(79)
-             if paiement and paiement.get("response_code") == "00":
-                 invoice_url = paiement["response_text"]
-                 st.markdown(
-                     f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
-                     unsafe_allow_html=True
-                 )
-             else:
-                 st.error("Erreur lors de la création du paiement PayDunya")
-       st.divider()
+    # 🟠 PayDunya
+    if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
+        with st.spinner("Redirection vers PayDunya..."):
+            paiement = creer_paiement_paydunya(79)
+            if paiement and paiement.get("response_code") == "00":
+                invoice_url = paiement["response_text"]
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={invoice_url}">', unsafe_allow_html=True)
+            else:
+                st.error("Erreur lors de la création du paiement PayDunya")
 
-# 🔴 Paiement hors ligne – DÉPLACÉ ICI À L'INTÉRIEUR DU BLOC
+    st.divider()
+
+    # 🔴 Paiement hors ligne
     if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
         st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
         name = st.text_input("Nom du magasin ou de la personne")
@@ -145,13 +118,9 @@ if "paid" not in st.session_state:
                 st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV.")
                 st.balloons()
 
-# Fin du bloc if "paid" not in st.session_state:  ← tout doit être avant cette ligne
-    
 # =========================
 # ACCÈS PREMIUM
 # =========================
-   st.session_state.paid = True
-
 else:
     st.success("Accès Premium activé ✅")
     rtsp = st.text_input(
