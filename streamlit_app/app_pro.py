@@ -129,11 +129,11 @@ if "paid" not in st.session_state:
             else:
                 st.error("Erreur lors de la création du paiement PayDunya")
 
-    st.divider()
-    # 🔴 Paiement hors ligne (liquide / RDV)
+        st.divider()
+
+    # 🔴 Paiement hors ligne – DÉPLACÉ ICI À L'INTÉRIEUR DU BLOC
     if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
         st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
-        
         name = st.text_input("Nom du magasin ou de la personne")
         address = st.text_input("Adresse du magasin")
         phone = st.text_input("Ton numéro de téléphone (WhatsApp de préférence)")
@@ -143,10 +143,10 @@ if "paid" not in st.session_state:
             if not name or not phone:
                 st.error("Nom et téléphone obligatoires")
             else:
-                # Ici on mettra l'envoi auto email/WhatsApp plus tard
-                st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV et activer tout sur place.")
+                st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV.")
                 st.balloons()
 
+# Fin du bloc if "paid" not in st.session_state:  ← tout doit être avant cette ligne
 # =========================
 # ACCÈS PREMIUM
 # =========================
