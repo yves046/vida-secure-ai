@@ -33,40 +33,47 @@ st.markdown("### Paiement sécurisé")
 # PAYDUNYA – FACTURE
 # =========================
 def creer_paiement_paydunya(montant, description="Abonnement Pro"):
-    url = "https://app.paydunya.com/api/checkout-invoice/create"
+    url = "https://api.paydunya.com/api/checkout-invoice/create"
 
     headers = {
         "Content-Type": "application/json",
-        "PAYDUNYA-MASTER-KEY": os.environ.get("PAYDUNYA_MASTER_KEY"),
-        "PAYDUNYA-PRIVATE-KEY": os.environ.get("PAYDUNYA_PRIVATE_KEY"),
-        "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN")
+        "Accept": "application/json",
+        "PAYDUNYA-MASTER-KEY": os.getenv("PAYDUNYA_MASTER_KEY"),
+        "PAYDUNYA-PRIVATE-KEY": os.getenv("PAYDUNYA_PRIVATE_KEY"),
+        "PAYDUNYA-TOKEN": os.getenv("PAYDUNYA_TOKEN"),
     }
 
     payload = {
         "invoice": {
-            "total_amount": montant,
+            "total_amount": int(montant),
             "description": description
         },
         "store": {
             "name": "Vida Secure AI"
         },
         "actions": {
-            "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
-            "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true"
+            "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app",
+            "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app"
         }
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=20)
+    response = requests.post(url, json=payload, headers=headers, timeout=20)
 
-    if response.status_code != 200:
-        st.error(f"Erreur PayDunya HTTP {response.status_code}")
+    try:
+        data = response.json()
+    except Exception:
+        st.error("Réponse PayDunya non JSON (URL ou headers incorrects)")
         st.code(response.text)
         return None
 
-    data = response.json()
+    if response.status_code != 200:
+        st.error(f"Erreur HTTP PayDunya : {response.status_code}")
+        st.code(data)
+        return None
 
     if data.get("response_code") != "00":
-        st.error(f"PayDunya refusé : {data}")
+        st.error("PayDunya a refusé la requête")
+        st.code(data)
         return None
 
     return data
@@ -118,6 +125,14 @@ st.link_button("👉 Continuer vers le paiement PayDunya", invoice_url, use_cont
                 st.error("Erreur lors de la création du paiement PayDunya")
 
     st.divider()
+     
+     if st.button("Tester paiement PayDunya"):
+    result = creer_paiement_paydunya(1000)
+
+    if result:
+        st.success("Facture créée avec succès")
+        st.write(result)
+        st.markdown(f"[Payer ici]({result['invoice_url']})")
 
     # 🔴 Paiement hors ligne
     if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
