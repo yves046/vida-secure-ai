@@ -116,19 +116,6 @@ if "paid" not in st.session_state:
 
     st.divider()
 
-    # 🟠 PayDunya (Mobile Money)
-    if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
-        with st.spinner("Redirection vers PayDunya..."):
-            paiement = creer_paiement_paydunya(79)
-            if paiement and paiement.get("response_code") == "00":
-                invoice_url = paiement["response_text"]
-                st.markdown(
-                    f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.error("Erreur lors de la création du paiement PayDunya")
-      st.divider()
     # 🔴 Paiement hors ligne – DÉPLACÉ ICI À L'INTÉRIEUR DU BLOC
     if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
         st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
@@ -145,6 +132,7 @@ if "paid" not in st.session_state:
                 st.balloons()
 
 # Fin du bloc if "paid" not in st.session_state:  ← tout doit être avant cette ligne
+    
 # =========================
 # ACCÈS PREMIUM
 # =========================
