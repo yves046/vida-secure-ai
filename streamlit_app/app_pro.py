@@ -132,6 +132,8 @@ if "paid" not in st.session_state:
 # =========================
 # ACCÈS PREMIUM
 # =========================
+   st.session_state.paid = True
+
 else:
     st.success("Accès Premium activé ✅")
     rtsp = st.text_input(
