@@ -129,6 +129,25 @@ if "paid" not in st.session_state:
             else:
                 st.error("Erreur lors de la création du paiement PayDunya")
 
+    st.divider()
+
+    # 🔴 Paiement hors ligne (liquide / RDV)
+    if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
+        st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
+        
+        name = st.text_input("Nom du magasin ou de la personne")
+        address = st.text_input("Adresse du magasin")
+        phone = st.text_input("Ton numéro de téléphone (WhatsApp de préférence)")
+        cams = st.number_input("Nombre de caméras", min_value=1, max_value=20, value=4)
+        
+        if st.button("Envoyer la demande"):
+            if not name or not phone:
+                st.error("Nom et téléphone obligatoires")
+            else:
+                # Ici on mettra l'envoi auto email/WhatsApp plus tard
+                st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV et activer tout sur place.")
+                st.balloons()
+
 # =========================
 # ACCÈS PREMIUM
 # =========================
