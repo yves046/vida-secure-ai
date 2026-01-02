@@ -34,28 +34,43 @@ st.markdown("### Paiement sécurisé")
 # =========================
 def creer_paiement_paydunya(montant, description="Abonnement Pro"):
     url = "https://app.paydunya.com/api/checkout-invoice/create"
+
     headers = {
+        "Content-Type": "application/json",
         "PAYDUNYA-MASTER-KEY": os.environ.get("PAYDUNYA_MASTER_KEY"),
         "PAYDUNYA-PRIVATE-KEY": os.environ.get("PAYDUNYA_PRIVATE_KEY"),
-        "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN"),
-        "Content-Type": "application/json"
+        "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN")
     }
+
     payload = {
-        "invoice": {"total_amount": montant, "description": description},
-        "store": {"name": "Vida Secure AI"},
+        "invoice": {
+            "total_amount": montant,
+            "description": description
+        },
+        "store": {
+            "name": "Vida Secure AI"
+        },
         "actions": {
             "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
             "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true"
-        },
-        "items": [{"name": description, "quantity": 1, "unit_price": montant, "total_price": montant}]
+        }
     }
-    response = requests.post(url, json=payload, headers=headers, timeout=20)
-    try:
-        return response.json()
-    except:
-        st.error("Réponse PayDunya invalide")
-        st.text(response.text)
+
+    response = requests.post(url, headers=headers, json=payload, timeout=20)
+
+    if response.status_code != 200:
+        st.error(f"Erreur PayDunya HTTP {response.status_code}")
+        st.code(response.text)
         return None
+
+    data = response.json()
+
+    if data.get("response_code") != "00":
+        st.error(f"PayDunya refusé : {data}")
+        return None
+
+    return data
+
 
 # =========================
 # RETOUR PAIEMENT
@@ -94,9 +109,10 @@ if "paid" not in st.session_state:
     # 🟠 PayDunya
     if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
         with st.spinner("Redirection vers PayDunya..."):
-            paiement = creer_paiement_paydunya(79)
+            paiement = creer_paiement_paydunya(50000)
             if paiement and paiement.get("response_code") == "00":
-                invoice_url = paiement["response_text"]
+                invoice_url = paiement["checkout_url"]
+st.link_button("👉 Continuer vers le paiement PayDunya", invoice_url, use_container_width=True)
                 st.markdown(f'<meta http-equiv="refresh" content="0; url={invoice_url}">', unsafe_allow_html=True)
             else:
                 st.error("Erreur lors de la création du paiement PayDunya")
