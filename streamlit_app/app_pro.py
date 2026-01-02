@@ -1,46 +1,36 @@
+# =========================
+# VIDA SECURE AI – PAIEMENTS STREAMLIT
+# =========================
+
 import os
 import requests
+import stripe
 import streamlit as st
 
 # =========================
-# CONFIGURATION PAGE
+# CONFIGURATION PAYDUNYA
 # =========================
-st.set_page_config(
-    page_title="Vida Secure AI – Pro",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
-
-# Style CSS
-st.markdown("""
-<style>
-body { background-color: #f5f5f5; color: #222; }
-.stButton>button { background-color: #4CAF50; color: white; font-size: 16px; padding: 10px; border-radius: 8px; }
-.stTextInput>div>input { border-radius: 6px; padding: 8px; font-size: 14px; }
-h1, h2, h3, h4 { color: #222; }
-.stMarkdown p { font-size: 16px; }
-</style>
-""", unsafe_allow_html=True)
+PAYDUNYA_MASTER_KEY = os.getenv("PAYDUNYA_MASTER_KEY")
+PAYDUNYA_PRIVATE_KEY = os.getenv("PAYDUNYA_PRIVATE_KEY")
+PAYDUNYA_TOKEN = os.getenv("PAYDUNYA_TOKEN")
+PAYDUNYA_URL = "https://api.paydunya.com/api/checkout-invoice/create"
 
 # =========================
-# TITRE
+# CONFIGURATION STRIPE
 # =========================
-st.title("Vida Secure AI – Abonnement Pro")
-st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
-st.markdown("### Paiement sécurisé")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+stripe.api_key = STRIPE_SECRET_KEY
 
 # =========================
-# PAYDUNYA – FACTURE
+# FONCTION PAYDUNYA
 # =========================
 def creer_paiement_paydunya(montant, description="Abonnement Pro"):
-    url = "https://api.paydunya.com/api/checkout-invoice/create"
-
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "PAYDUNYA-MASTER-KEY": os.getenv("PAYDUNYA_MASTER_KEY"),
-        "PAYDUNYA-PRIVATE-KEY": os.getenv("PAYDUNYA_PRIVATE_KEY"),
-        "PAYDUNYA-TOKEN": os.getenv("PAYDUNYA_TOKEN"),
+        "PAYDUNYA-MASTER-KEY": PAYDUNYA_MASTER_KEY,
+        "PAYDUNYA-PRIVATE-KEY": PAYDUNYA_PRIVATE_KEY,
+        "PAYDUNYA-TOKEN": PAYDUNYA_TOKEN
     }
 
     payload = {
@@ -57,13 +47,12 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
         }
     }
 
-    response = requests.post(url, json=payload, headers=headers, timeout=20)
-
     try:
+        response = requests.post(PAYDUNYA_URL, headers=headers, json=payload, timeout=20)
         data = response.json()
-    except Exception:
-        st.error("Réponse PayDunya non JSON (URL ou headers incorrects)")
-        st.code(response.text)
+    except Exception as e:
+        st.error("Erreur lors de l'appel à PayDunya")
+        st.code(str(e))
         return None
 
     if response.status_code != 200:
@@ -78,86 +67,50 @@ def creer_paiement_paydunya(montant, description="Abonnement Pro"):
 
     return data
 
+# =========================
+# FONCTION STRIPE
+# =========================
+def creer_paiement_stripe(montant, description="Abonnement Pro"):
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": description,
+                    },
+                    "unit_amount": int(montant * 100),  # Stripe en cents
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url="https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
+            cancel_url="https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true",
+        )
+        return session
+    except Exception as e:
+        st.error("Erreur lors de l'appel à Stripe")
+        st.code(str(e))
+        return None
 
 # =========================
-# RETOUR PAIEMENT
+# STREAMLIT UI
 # =========================
-if st.query_params.get("success") == "true":
-    st.success("Paiement réussi 🎉 Bienvenue dans Vida Secure Pro")
-    st.session_state.paid = True
-if st.query_params.get("cancel") == "true":
-    st.warning("Paiement annulé")
+st.title("Paiement Vida Secure AI")
 
-# =========================
-# PAGE ABONNEMENT
-# =========================
-if "paid" not in st.session_state:
-    email = st.text_input("Ton email (pour la facture)", placeholder="jean@exemple.com")
+montant = st.number_input("Montant à payer", min_value=100, value=1000, step=100)
+mode = st.radio("Mode de paiement", ["PayDunya", "Stripe"])
 
-    # 🔵 Stripe
-    if st.button("Payer 79 € par carte (Stripe)", use_container_width=True):
-        if not email.strip():
-            st.error("Entre ton email")
-        else:
-            with st.spinner("Redirection vers Stripe..."):
-                r = requests.post(
-                    "https://vida-secure-ai-2.onrender.com/create-checkout-session",
-                    json={"email": email.strip()},
-                    timeout=15
-                )
-                data = r.json()
-                if "url" in data:
-                    st.link_button("👉 Continuer vers le paiement sécurisé Stripe", data["url"], use_container_width=True)
-                else:
-                    st.error("Erreur Stripe")
-
-    st.divider()
-
-    # 🟠 PayDunya
-    if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
-        with st.spinner("Redirection vers PayDunya..."):
-            paiement = creer_paiement_paydunya(50000)
-            if paiement and paiement.get("response_code") == "00":
-                invoice_url = paiement["checkout_url"]
-st.link_button("👉 Continuer vers le paiement PayDunya", invoice_url, use_container_width=True)
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={invoice_url}">', unsafe_allow_html=True)
-            else:
-                st.error("Erreur lors de la création du paiement PayDunya")
-
-    st.divider()
-     
-     if st.button("Tester paiement PayDunya"):
-    result = creer_paiement_paydunya(1000)
-
-    if result:
-        st.success("Facture créée avec succès")
-        st.write(result)
-        st.markdown(f"[Payer ici]({result['invoice_url']})")
-
-    # 🔴 Paiement hors ligne
-    if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
-        st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
-        name = st.text_input("Nom du magasin ou de la personne")
-        address = st.text_input("Adresse du magasin")
-        phone = st.text_input("Ton numéro de téléphone (WhatsApp de préférence)")
-        cams = st.number_input("Nombre de caméras", min_value=1, max_value=20, value=4)
-        
-        if st.button("Envoyer la demande"):
-            if not name or not phone:
-                st.error("Nom et téléphone obligatoires")
-            else:
-                st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV.")
-                st.balloons()
-
-# =========================
-# ACCÈS PREMIUM
-# =========================
-else:
-    st.success("Accès Premium activé ✅")
-    rtsp = st.text_input(
-        "URL RTSP de ta caméra",
-        value="rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov"
-    )
-    if st.button("Lancer la surveillance"):
-        st.video(rtsp)
-        st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
+if st.button("Payer maintenant"):
+    if mode == "PayDunya":
+        resultat = creer_paiement_paydunya(montant)
+        if resultat:
+            st.success("Facture PayDunya créée !")
+            st.write(resultat)
+            st.markdown(f"[Payer ici]({resultat['invoice_url']})")
+    else:
+        session = creer_paiement_stripe(montant)
+        if session:
+            st.success("Session Stripe créée !")
+            st.markdown(f"[Payer ici via Stripe]({session.url})")
