@@ -116,33 +116,28 @@ if "paid" not in st.session_state:
 
     st.divider()
 
-# 🟠 PayDunya (Mobile Money)
-     if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
-         with st.spinner("Redirection vers PayDunya..."):
-             paiement = creer_paiement_paydunya(79)
-             if paiement and paiement.get("response_code") == "00":
-                 invoice_url = paiement["response_text"]
-                 st.markdown(
-                     f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
-                     unsafe_allow_html=True
-                 )
-             else:
-                 st.error("Erreur lors de la création du paiement PayDunya")
-       st.divider()
-
-# 🔴 Paiement hors ligne – DÉPLACÉ ICI À L'INTÉRIEUR DU BLOC
-    if st.button("Paiement hors ligne (liquide ou RDV sur place)", use_container_width=True, type="primary"):
-        st.info("Remplis ce formulaire → je te contacte sous 24h pour le RDV et l'activation immédiate.")
-        name = st.text_input("Nom du magasin ou de la personne")
-        address = st.text_input("Adresse du magasin")
-        phone = st.text_input("Ton numéro de téléphone (WhatsApp de préférence)")
-        cams = st.number_input("Nombre de caméras", min_value=1, max_value=20, value=4)
-        
-        if st.button("Envoyer la demande"):
-            if not name or not phone:
-                st.error("Nom et téléphone obligatoires")
+    # 🟠 PayDunya (Mobile Money)
+    if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
+        with st.spinner("Redirection vers PayDunya..."):
+            paiement = creer_paiement_paydunya(79)
+            if paiement and paiement.get("response_code") == "00":
+                invoice_url = paiement["response_text"]
+                st.markdown(
+                    f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
+                    unsafe_allow_html=True
+                )
             else:
-                st.success(f"Demande reçue ! Je t'appelle au {phone} sous 24h pour fixer le RDV.")
-                st.balloons()
+                st.error("Erreur lors de la création du paiement PayDunya")
 
-# Fin du bloc if "paid" not in st.session_state:  
+# =========================
+# ACCÈS PREMIUM
+# =========================
+else:
+    st.success("Accès Premium activé ✅")
+    rtsp = st.text_input(
+        "URL RTSP de ta caméra",
+        value="rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov"
+    )
+    if st.button("Lancer la surveillance"):
+        st.video(rtsp)
+        st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
