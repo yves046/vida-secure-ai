@@ -47,36 +47,34 @@ st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
 st.markdown("### Paiement sécurisé")
 
 # =========================
-# PAYDUNYA – FACTURE
+# LYGOS – FACTURE
 # =========================
-def creer_paiement_paydunya(montant, description="Abonnement Pro"):
-    url = "https://app.paydunya.com/api/checkout-invoice/create"
-
+def creer_paiement_lygos(montant, description="Abonnement Pro"):
+    url = "https://api.lygos.africa/v1/checkout"
     headers = {
-        "PAYDUNYA-MASTER-KEY": os.environ.get("PAYDUNYA_MASTER_KEY"),
-        "PAYDUNYA-PRIVATE-KEY": os.environ.get("PAYDUNYA_PRIVATE_KEY"),
-        "PAYDUNYA-TOKEN": os.environ.get("PAYDUNYA_TOKEN"),
+        "Authorization": f"Bearer {os.environ.get('LYGOS_PRIVATE_KEY')}",
         "Content-Type": "application/json"
     }
-
     payload = {
-        "invoice": {"total_amount": montant, "description": description},
-        "store": {"name": "Vida Secure AI"},
-        "actions": {
-            "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
-            "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true"
-        },
-        "items": [{"name": description, "quantity": 1, "unit_price": montant, "total_price": montant}]
+        "amount": montant * 100,  # en centimes
+        "currency": "XOF",
+        "description": description,
+        "return_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
+        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true",
+        "customer_email": email
     }
-
     response = requests.post(url, json=payload, headers=headers, timeout=20)
     try:
-        return response.json()
+        data = response.json()
+        if data.get("status") == "success":
+            return data["payment_url"]
+        else:
+            st.error("Erreur Lygos")
+            st.write(data)
+            return None
     except:
-        st.error("Réponse PayDunya invalide")
-        st.text(response.text)
+        st.error("Réponse Lygos invalide")
         return None
-
 # =========================
 # RETOUR PAIEMENT
 # =========================
@@ -116,18 +114,14 @@ if "paid" not in st.session_state:
 
     st.divider()
 
-    # 🟠 PayDunya (Mobile Money)
-    if st.button("Payer avec Wave / Orange / MTN", use_container_width=True):
-        with st.spinner("Redirection vers PayDunya..."):
-            paiement = creer_paiement_paydunya(79)
-            if paiement and paiement.get("response_code") == "00":
-                invoice_url = paiement["response_text"]
-                st.markdown(
-                    f'<meta http-equiv="refresh" content="0; url={invoice_url}">',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.error("Erreur lors de la création du paiement PayDunya")
+    # 🟠 Lygos (Mobile Money)
+if st.button("Payer avec Wave / Orange / MTN (Lygos)", use_container_width=True):
+    with st.spinner("Redirection vers Lygos..."):
+        payment_url = creer_paiement_lygos(79)
+        if payment_url:
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={payment_url}">', unsafe_allow_html=True)
+        else:
+            st.error("Erreur paiement Lygos")
 
 # =========================
 # ACCÈS PREMIUM
