@@ -46,11 +46,6 @@ st.title("Vida Secure AI – Abonnement Pro")
 st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
 st.markdown("### Paiement sécurisé")
 
-email = st.text_input(
-    "Ton email (pour la facture)",
-    placeholder="jean@exemple.com"
-)
-
 # =========================
 # LYGOS – FACTURE
 # =========================
