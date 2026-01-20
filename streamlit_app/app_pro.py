@@ -50,10 +50,11 @@ st.markdown("### Paiement sécurisé")
 # LYGOS – FACTURE
 # =========================
 def creer_paiement_lygos(montant, description="Abonnement Pro"):
-    url = "https://api.lygos.africa/v1/checkout"
+    url = "https://api.lygosapp.com/v1/checkout"
     headers = {
         "Authorization": f"Bearer {os.environ.get('LYGOS_PRIVATE_KEY')}",
         "Content-Type": "application/json"
+        "Accept": "application/json"
     }
     payload = {
         "amount": montant * 100,  # en centimes
@@ -75,6 +76,7 @@ def creer_paiement_lygos(montant, description="Abonnement Pro"):
     except:
         st.error("Réponse Lygos invalide")
         return None
+
 # =========================
 # RETOUR PAIEMENT
 # =========================
