@@ -54,7 +54,6 @@ def creer_paiement_lygos(montant, description="Abonnement Pro"):
     headers = {
         "Authorization": f"Bearer {os.environ.get('LYGOS_PRIVATE_KEY')}",
         "Content-Type": "application/json"
-        "Accept": "application/json"
     }
     payload = {
         "amount": montant * 100,  # en centimes
