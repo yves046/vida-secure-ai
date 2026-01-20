@@ -49,31 +49,35 @@ st.markdown("### Paiement sécurisé")
 # =========================
 # LYGOS – FACTURE
 # =========================
-def creer_paiement_lygos(montant, description="Abonnement Pro"):
-    url = "https://api.lygosapp.com/v1/checkout"
+def creer_paiement_lygos(montant, email, description="Abonnement Pro"):
+    url = "https://api.lygosapp.com/v1/payments"
+
     headers = {
         "Authorization": f"Bearer {os.environ.get('LYGOS_PRIVATE_KEY')}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
     }
+
     payload = {
-        "amount": montant * 100,  # en centimes
+        "amount": montant,
         "currency": "XOF",
         "description": description,
-        "return_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?success=true",
-        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeeudblth.streamlit.app/?cancel=true",
-        "customer_email": email
+        "customer": {
+            "email": email
+        },
+        "success_url": "https://vida-secure-ai-7enddksqy2c8zpeuublth.streamlit.app/?success=true",
+        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeuublth.streamlit.app/?cancel=true"
     }
-    response = requests.post(url, json=payload, headers=headers, timeout=20)
+
     try:
+        response = requests.post(url, json=payload, headers=headers, timeout=20)
+        response.raise_for_status()
         data = response.json()
-        if data.get("status") == "success":
-            return data["payment_url"]
-        else:
-            st.error("Erreur Lygos")
-            st.write(data)
-            return None
-    except:
-        st.error("Réponse Lygos invalide")
+        return data["payment_url"]
+
+    except Exception as e:
+        st.error("Erreur paiement Lygos")
+        st.write(str(e))
         return None
 
 # =========================
@@ -117,12 +121,19 @@ if "paid" not in st.session_state:
 
     # 🟠 Lygos (Mobile Money)
 if st.button("Payer avec Wave / Orange / MTN (Lygos)", use_container_width=True):
-    with st.spinner("Redirection vers Lygos..."):
-        payment_url = creer_paiement_lygos(79)
-        if payment_url:
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={payment_url}">', unsafe_allow_html=True)
-        else:
-            st.error("Erreur paiement Lygos")
+    if not email:
+        st.warning("Veuillez entrer votre email")
+    else:
+        with st.spinner("Redirection vers Lygos..."):
+            payment_url = creer_paiement_lygos(79, email)
+            if payment_url:
+                st.markdown(
+                    f'<meta http-equiv="refresh" content="0; url={payment_url}">',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.error("Erreur paiement Lygos")
+
 
 # =========================
 # ACCÈS PREMIUM
