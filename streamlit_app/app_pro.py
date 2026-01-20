@@ -122,7 +122,7 @@ if "paid" not in st.session_state:
     # 🟠 Lygos (Mobile Money)
 if st.button("Payer avec Wave / Orange / MTN (Lygos)", use_container_width=True):
     if not email:
-        st.warning("Veuillez entrer votre email")
+        st.error("Veuillez entrer votre email")
     else:
         with st.spinner("Redirection vers Lygos..."):
             payment_url = creer_paiement_lygos(79, email)
