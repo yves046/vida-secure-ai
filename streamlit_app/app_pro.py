@@ -11,31 +11,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Style CSS pour fond clair et look pro
+# =========================
+# STYLE
+# =========================
 st.markdown("""
 <style>
-body {
-    background-color: #f5f5f5;
-    color: #222;
-}
-.stButton>button {
-    background-color: #4CAF50;
-    color: white;
-    font-size: 16px;
-    padding: 10px;
-    border-radius: 8px;
-}
-.stTextInput>div>input {
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 14px;
-}
-h1, h2, h3, h4 {
-    color: #222;
-}
-.stMarkdown p {
-    font-size: 16px;
-}
+body { background-color: #f5f5f5; color: #222; }
+.stButton>button { background-color: #4CAF50; color: white; font-size: 16px; padding: 10px; border-radius: 8px; }
+.stTextInput>div>input { border-radius: 6px; padding: 8px; font-size: 14px; }
+h1, h2, h3, h4 { color: #222; }
+.stMarkdown p { font-size: 16px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,48 +32,41 @@ st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
 st.markdown("### Paiement sécurisé")
 
 # =========================
-# LYGOS – FACTURE
+# PAYSTACK – INITIALISATION
 # =========================
-def creer_paiement_lygos(montant, email, description="Abonnement Pro"):
-    url = "https://api.lygosapp.com/v1/payments"
+PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")  # Ta clé secrète Paystack
 
-    headers = {
-        "Authorization": f"Bearer {os.environ.get('LYGOS_PRIVATE_KEY')}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-
+def creer_paiement_paystack(montant, email, description="Abonnement Pro"):
+    url = "https://api.paystack.co/transaction/initialize"
+    headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
     payload = {
-        "amount": montant,
+        "email": email,
+        "amount": int(montant * 100),  # Paystack attend le montant en kobo
         "currency": "XOF",
-        "description": description,
-        "customer": {
-            "email": email
-        },
-        "success_url": "https://vida-secure-ai-7enddksqy2c8zpeuublth.streamlit.app/?success=true",
-        "cancel_url": "https://vida-secure-ai-7enddksqy2c8zpeuublth.streamlit.app/?cancel=true"
+        "callback_url": "https://vida-secure-ai-7enddksqy2c8zpeuublth.streamlit.app/?success=true",
+        "metadata": {"description": description}
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=20)
         response.raise_for_status()
         data = response.json()
-        return data["payment_url"]
-
+        if data["status"]:
+            return data["data"]["authorization_url"]
+        else:
+            st.error("Erreur Paystack")
+            return None
     except Exception as e:
-        st.error("Erreur paiement Lygos")
+        st.error("Erreur paiement Paystack")
         st.write(str(e))
         return None
 
 # =========================
-# RETOUR PAIEMENT
+# PAIEMENT SUCCESS / CANCEL
 # =========================
 if st.query_params.get("success") == "true":
     st.success("Paiement réussi 🎉 Bienvenue dans Vida Secure Pro")
     st.session_state.paid = True
-
-if st.query_params.get("cancel") == "true":
-    st.warning("Paiement annulé")
 
 # =========================
 # PAGE ABONNEMENT
@@ -102,38 +80,38 @@ if "paid" not in st.session_state:
             st.error("Entre ton email")
         else:
             with st.spinner("Redirection vers Stripe..."):
-                r = requests.post(
-                    "https://vida-secure-ai-2.onrender.com/create-checkout-session",
-                    json={"email": email.strip()},
-                    timeout=15
-                )
-                data = r.json()
-                if "url" in data:
-                    st.link_button(
-                        "👉 Continuer vers le paiement sécurisé Stripe",
-                        data["url"],
-                        use_container_width=True
+                try:
+                    r = requests.post(
+                        "https://vida-secure-ai-2.onrender.com/create-checkout-session",
+                        json={"email": email.strip()},
+                        timeout=15
                     )
-                else:
+                    data = r.json()
+                    if "url" in data:
+                        st.link_button(
+                            "👉 Continuer vers le paiement sécurisé Stripe",
+                            data["url"],
+                            use_container_width=True
+                        )
+                    else:
+                        st.error("Erreur Stripe")
+                except Exception as e:
                     st.error("Erreur Stripe")
+                    st.write(str(e))
 
     st.divider()
 
-    # 🟠 Lygos (Mobile Money)
-if st.button("Payer avec Wave / Orange / MTN (Lygos)", use_container_width=True):
-    if not email:
-        st.warning("Veuillez entrer votre email")
-    else:
-        with st.spinner("Redirection vers Lygos..."):
-            payment_url = creer_paiement_lygos(79, email)
-            if payment_url:
-                st.markdown(
-                    f'<meta http-equiv="refresh" content="0; url={payment_url}">',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.error("Erreur paiement Lygos")
-
+    # 🟠 Paystack (Mobile Money / Carte)
+    if st.button("Payer 79 € avec Paystack", use_container_width=True):
+        if not email.strip():
+            st.warning("Veuillez entrer votre email")
+        else:
+            with st.spinner("Redirection vers Paystack..."):
+                payment_url = creer_paiement_paystack(79, email.strip())
+                if payment_url:
+                    st.markdown(f'<meta http-equiv="refresh" content="0; url={payment_url}">', unsafe_allow_html=True)
+                else:
+                    st.error("Erreur paiement Paystack")
 
 # =========================
 # ACCÈS PREMIUM
