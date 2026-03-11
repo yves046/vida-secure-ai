@@ -34,7 +34,9 @@ st.markdown("### Paiement sécurisé")
 # =========================
 # PAYSTACK – MODE TEST
 # =========================
-PAYSTACK_SECRET_KEY = "sk_test_0483a422773bd7c816e5e06b2008109279501ac1"  # remplace par ta clé test
+import os
+
+PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")
 
 def creer_paiement_paystack_test(montant, email, description="Abonnement Pro"):
     url = "https://api.paystack.co/transaction/initialize"
