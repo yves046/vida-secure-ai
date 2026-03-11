@@ -32,11 +32,11 @@ st.markdown("### Surveillance intelligente 24/7 – 79 € / mois")
 st.markdown("### Paiement sécurisé")
 
 # =========================
-# PAYSTACK – INITIALISATION
+# PAYSTACK – MODE TEST
 # =========================
-PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")  # Ta clé secrète Paystack
+PAYSTACK_SECRET_KEY = "sk_test_0483a422773bd7c816e5e06b2008109279501ac1"  # remplace par ta clé test
 
-def creer_paiement_paystack(montant, email, description="Abonnement Pro"):
+def creer_paiement_paystack_test(montant, email, description="Abonnement Pro"):
     url = "https://api.paystack.co/transaction/initialize"
     headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
     payload = {
@@ -54,10 +54,10 @@ def creer_paiement_paystack(montant, email, description="Abonnement Pro"):
         if data["status"]:
             return data["data"]["authorization_url"]
         else:
-            st.error("Erreur Paystack")
+            st.error("Erreur Paystack (mode test)")
             return None
     except Exception as e:
-        st.error("Erreur paiement Paystack")
+        st.error("Erreur paiement Paystack (mode test)")
         st.write(str(e))
         return None
 
@@ -101,17 +101,17 @@ if "paid" not in st.session_state:
 
     st.divider()
 
-    # 🟠 Paystack (Mobile Money / Carte)
-    if st.button("Payer 79 € avec Paystack", use_container_width=True):
-        if not email.strip():
-            st.warning("Veuillez entrer votre email")
-        else:
-            with st.spinner("Redirection vers Paystack..."):
-                payment_url = creer_paiement_paystack(79, email.strip())
-                if payment_url:
-                    st.markdown(f'<meta http-equiv="refresh" content="0; url={payment_url}">', unsafe_allow_html=True)
-                else:
-                    st.error("Erreur paiement Paystack")
+    # 🟠 Paystack (mode test)
+if st.button("Payer 79 € avec Paystack (Test)", use_container_width=True):
+    if not email.strip():
+        st.warning("Veuillez entrer votre email")
+    else:
+        with st.spinner("Redirection vers Paystack (test)..."):
+            payment_url = creer_paiement_paystack_test(79, email.strip())
+            if payment_url:
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={payment_url}">', unsafe_allow_html=True)
+            else:
+                st.error("Erreur paiement Paystack (mode test)")
 
 # =========================
 # ACCÈS PREMIUM
