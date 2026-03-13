@@ -35,8 +35,10 @@ st.markdown("### Paiement sécurisé")
 # PAYSTACK – MODE TEST
 # =========================
 import os
+import streamlit as st
 
 PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")
+
 if not PAYSTACK_SECRET_KEY:
     st.error("La clé Paystack n'est pas définie ! Vérifie ton .env ou tes variables d'environnement.")
 else:
