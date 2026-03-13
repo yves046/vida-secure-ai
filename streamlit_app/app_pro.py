@@ -37,6 +37,10 @@ st.markdown("### Paiement sécurisé")
 import os
 
 PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")
+if not PAYSTACK_SECRET_KEY:
+    st.error("La clé Paystack n'est pas définie ! Vérifie ton .env ou tes variables d'environnement.")
+else:
+    st.write("Clé Paystack détectée ✅")
 
 def creer_paiement_paystack_test(montant, email, description="Abonnement Pro"):
     url = "https://api.paystack.co/transaction/initialize"
