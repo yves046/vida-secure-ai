@@ -130,27 +130,7 @@ else:
         "URL RTSP de ta caméra",
         value="rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov"
     )
-    if st.button("Lancer la surveillance"):
-        
-        import cv2
-import streamlit as st
-
-rtsp = "rtsp://Yves040:Yves46839488@10.10.10.122:554/stream1"
-
-cap = cv2.VideoCapture(rtsp)
-
-frame_window = st.image([])
-
-while True:
-    ret, frame = cap.read()
-
-    if not ret:
-        st.write("Impossible de lire la caméra")
-        break
-
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-    frame_window.image(frame)
-
+    if st.button("Lancer la surveillance"):    
+     st.video(rtsp)
 cap.release()
         st.write("Détection IA active (intrus, sacs abandonnés, etc.)")
