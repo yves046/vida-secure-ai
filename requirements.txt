@@ -1,0 +1,13 @@
+streamlit
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+python-multipart
+passlib[bcrypt]
+python-jose
+requests
+opencv-python-headless
+numpy
+ffmpeg-python
+psycopg2-binary
