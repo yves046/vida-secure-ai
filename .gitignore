@@ -1,0 +1,17 @@
+venv/
+vision_env/
+pycache/
+*.pyc
+*.jpg
+*.png
+*.pdf
+*.mp4
+*.avi
+*.ts
+captures/
+videos/
+uploads/
+frames_temp/
+logs.txt
+security_log.txt
+.env
