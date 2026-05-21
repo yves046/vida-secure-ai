@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import os
 import streamlit as st
 import requests
-import ffmpeg
 import numpy as np
 import cv2
 import time
