@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from intrusion import start_detection
-from backend import models
+import models
 import threading
 import os
 import requests
