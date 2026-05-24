@@ -1,5 +1,5 @@
-from backend.models import Alert
-from backend.database import SessionLocal
+from models import Alert
+from database import SessionLocal
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Form, HTTPException, Depends, Body, BackgroundTasks, Request
 from database import engine, SessionLocal
@@ -8,7 +8,7 @@ from models import Base, User, Alert
 from sqlalchemy.orm import Session
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
-from backend.intrusion import start_detection
+from intrusion import start_detection
 from backend import models
 import threading
 import os
@@ -18,8 +18,8 @@ import hashlib
 
 
 from database import engine
-from backend.security import hash_password, verify_password, create_access_token
-from backend.deps import get_db, get_current_user
+from security import hash_password, verify_password, create_access_token
+from deps import get_db, get_current_user
 from datetime import timedelta
 
 models.Base.metadata.create_all(bind=engine)
