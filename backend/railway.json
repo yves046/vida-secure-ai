@@ -1,0 +1,12 @@
+{
+  "build": {
+    "builder": "paketobuildpacks"
+  },
+  "start": "uvicorn backend.main:app --host 0.0.0.0 --port $PORT",
+  "staticSites": [
+    {
+      "directory": ".",
+      "index": "index.html"
+    }
+  ]
+}

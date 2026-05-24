@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Vida Secure AI – Abonnement Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {font-family: Arial, sans-serif; background: #0f172a; color: white; text-align: center; padding: 60px 20px;}
+    h1 {font-size: 2.8em; margin-bottom: 0.2em;}
+    p {font-size: 1.4em; margin-bottom: 2em;}
+    button {background: #635bff; color: white; padding: 20px 50px; font-size: 1.6em; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 20px rgba(99,91,255,0.4);}
+    button:hover {background: #7f6aff; transform:active{transform:scale(0.98);}}
+  </style>
+</head>
+<body>
+  <h1>Vida Secure AI</h1>
+  <p>Surveillance intelligente 24/7 de vos caméras<br>Alertes instantanées + rapports automatiques</p>
+  <h2>79 € / mois</h2>
+  <button onclick="fetch('/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:'client_'+Date.now()})}).then(r=>r.json()).then(d=>location.href=d.url)">
+    → S’abonner maintenant
+  </button>
+</body>
+</html>

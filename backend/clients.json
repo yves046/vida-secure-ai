@@ -1,0 +1,18 @@
+[
+  {
+    "site": "Magasin Test",
+    "plan": "Premium",
+    "price": 50000,
+    "paid": true,
+    "expires": "2026-05-21",
+    "email": "client@test.com"
+  },
+  {
+    "site": "Pharmacie Cocody",
+    "plan": "Premium",
+    "price": 50000,
+    "paid": false,
+    "expires": "2026-04-20",
+    "email": "pharmacie@test.com"
+  }
+]
