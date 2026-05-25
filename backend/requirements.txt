@@ -8,3 +8,4 @@ requests
 opencv-python-headless
 sqlalchemy
 python-jose
+passlib[bcrypt]
