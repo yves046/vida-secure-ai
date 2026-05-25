@@ -7,3 +7,4 @@ streamlit
 requests
 opencv-python-headless
 sqlalchemy
+python-jose
