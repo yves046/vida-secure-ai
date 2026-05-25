@@ -29,6 +29,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PAYSTACK_SECRET_KEY = "sk_test_0483a422773bd7c816e5e06b2008109279501ac1"
 
 app = FastAPI()
+
+os.makedirs(os.path.join(BASE_DIR, "videos"), exist_ok=True)
+
 app.mount(
     "/videos",
     StaticFiles(directory=os.path.join(BASE_DIR, "videos")),
