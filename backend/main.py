@@ -30,6 +30,10 @@ PAYSTACK_SECRET_KEY = "sk_test_0483a422773bd7c816e5e06b2008109279501ac1"
 
 app = FastAPI()
 
+@app.get("/")
+def home():
+    return {"message": "VIDA Secure AI Backend Online"}
+
 os.makedirs(os.path.join(BASE_DIR, "videos"), exist_ok=True)
 
 app.mount(
