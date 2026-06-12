@@ -1,0 +1,9 @@
+{
+    "client": "Ecole Sainte Marie",
+    "expiration": "2027-06-12",
+    "cameras": 2,
+    "rtsp_streams": [
+        "rtsp://Yves040:Yves46839488@10.10.10.33:554/stream1",
+        "rtsp://camera2_test"
+    ]
+}
