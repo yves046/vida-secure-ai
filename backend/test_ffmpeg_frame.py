@@ -136,210 +136,227 @@ def create_pdf_report(image_path):
 
     print(f"PDF créé : {pdf_name}")
 
-while True:
-    raw_image = pipe.stdout.read(WIDTH * HEIGHT * 3)
+def process_camera(pipe):
 
-    if len(raw_image) != WIDTH * HEIGHT * 3:
-        print("Frame perdue")
-        break
+    global recording
+    global video_writer
+    global last_detection_time
+    global intrusion_start_time
+    global max_persons_detected
+    global last_image_path
+    global last_video_path
+    global record_end_time
+    global last_alert_time
 
-    frame = np.frombuffer(
-        raw_image,
-        dtype=np.uint8
-    ).reshape((HEIGHT, WIDTH, 3))
+    while True:
+        raw_image = pipe.stdout.read(WIDTH * HEIGHT * 3)
 
-    frame = frame.copy()
+        if len(raw_image) != WIDTH * HEIGHT * 3:
+            print("Frame perdue")
+            break
 
-    # Gestion de l'enregistrement
-    if recording:
-        video_writer.write(frame)
+        frame = np.frombuffer(
+            raw_image,
+            dtype=np.uint8
+        ).reshape((HEIGHT, WIDTH, 3))
 
-        print(
-            "DEBUG:",
-            time.time() - last_detection_time
+        frame = frame.copy()
+
+        # Gestion de l'enregistrement
+        if recording:
+            video_writer.write(frame)
+
+            print(
+                "DEBUG:",
+                time.time() - last_detection_time
+            )
+
+            # Arrêt 10 sec après la dernière détection
+            if time.time() - last_detection_time > 10:
+                recording = False
+
+                if video_writer is not None:
+                    video_writer.release()
+                    video_writer = None
+
+                intrusion_duration = int(
+                    time.time() - intrusion_start_time
+                )
+
+                report_name = f"rapport_{int(time.time())}.pdf"
+
+                pdf = SimpleDocTemplate(report_name)
+
+                styles = getSampleStyleSheet()
+
+                elements = []
+
+                elements.append(
+                    Paragraph(
+                        "RAPPORT D'INTRUSION VIDA SECURE AI",
+                        styles["Title"]
+                    )
+                )
+
+                elements.append(Spacer(1, 20))
+
+                elements.append(
+                    Paragraph(
+                        f"Duree intrusion : {intrusion_duration} secondes",
+                        styles["Normal"]
+                    )
+                )
+
+                elements.append(
+                    Paragraph(
+                        f"Nombre max de personnes : {max_persons_detected}",
+                        styles["Normal"]
+                    )
+                )
+
+                elements.append(
+                    Paragraph(
+                        f"Video : {last_video_path}",
+                        styles["Normal"]
+                    )
+                )
+
+                elements.append(Spacer(1, 20))
+
+                if last_image_path:
+                    img = Image(last_image_path)
+
+                    img.drawWidth = 300
+                    img.drawHeight = 170
+
+                    elements.append(img)
+
+                print("AVANT PDF")
+                pdf.build(elements)
+                print("APRES PDF")
+
+                print("PDF cree :", report_name)
+
+                send_alert(
+                    to_email="yvestoure717@gmail.com",
+                    timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                    intrusion_duration=intrusion_duration,
+                    persons_count=max_persons_detected,
+                    pdf_path=report_name,
+                    image_path=last_image_path,
+                    video_path=last_video_path
+                )
+
+                print("FIN VIDEO")
+
+
+        results = model(frame)
+
+        persons_in_frame = 0
+
+        for r in results:
+            for box in r.boxes:
+
+                cls = int(box.cls[0])
+                confidence = float(box.conf[0])
+
+                if cls == 0 and confidence > 0.80:
+                    print(
+                        "Personne",
+                        round(confidence, 2)
+                    )
+
+                    last_detection_time = time.time()
+
+                    persons_in_frame += 1
+
+                    # Début d'une nouvelle intrusion
+                    if not recording:
+
+                        intrusion_start_time = time.time()
+
+                        max_persons_detected = 0
+
+                        timestamp = int(time.time())
+
+                        video_path = f"intrusion_{timestamp}.mp4"
+
+                        last_video_path = video_path
+
+                        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+                        video_writer = cv2.VideoWriter(
+                            video_path,
+                            fourcc,
+                            10,
+                            (WIDTH, HEIGHT)
+                        )
+
+                        recording = True
+
+                        print("ALERTE INTRUSION")
+                        print(f"DEBUT VIDEO : {video_path}")
+
+                        image_path = f"intrusion_{timestamp}.jpg"
+
+                        last_image_path = image_path
+
+                        cv2.imwrite(image_path, frame)
+
+                        print(f"Photo sauvegardée : {image_path}")
+
+                    current_time = time.time()
+
+                    if current_time - last_alert_time > ALERT_DELAY:
+                        last_alert_time = current_time
+
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+                    width = x2 - x1
+                    height = y2 - y1
+
+                    if cls == 0 and confidence > 0.80 and width > 50 and height > 100:
+                
+                        cv2.rectangle(
+                            frame,
+                            (x1, y1),
+                            (x2, y2),
+                            (0, 255, 0),
+                            2
+                        )
+
+                        cv2.putText(
+                            frame,
+                            "PERSONNE",
+                            (x1, y1 - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (0, 255, 0),
+                            2
+                        )
+
+        # ← ICI SEULEMENT
+
+        max_persons_detected = max(
+            max_persons_detected,
+            persons_in_frame
         )
 
-        # Arrêt 10 sec après la dernière détection
-        if time.time() - last_detection_time > 10:
-            recording = False
+        cv2.imshow("VIDA CAMERA", frame)
 
-            if video_writer is not None:
-                video_writer.release()
-                video_writer = None
+        key = cv2.waitKey(1) & 0xFF
 
-            intrusion_duration = int(
-                time.time() - intrusion_start_time
-            )
+        if key == ord("s"):
+            cv2.imwrite("person_test.jpg", frame)
+            print("Image sauvée")
 
-            report_name = f"rapport_{int(time.time())}.pdf"
+        if key == ord("q"):
+            break
 
-            pdf = SimpleDocTemplate(report_name)
+        if key == ord("q"):
+            break
 
-            styles = getSampleStyleSheet()
-
-            elements = []
-
-            elements.append(
-                Paragraph(
-                    "RAPPORT D'INTRUSION VIDA SECURE AI",
-                    styles["Title"]
-                )
-            )
-
-            elements.append(Spacer(1, 20))
-
-            elements.append(
-                Paragraph(
-                    f"Duree intrusion : {intrusion_duration} secondes",
-                    styles["Normal"]
-                )
-            )
-
-            elements.append(
-                Paragraph(
-                    f"Nombre max de personnes : {max_persons_detected}",
-                    styles["Normal"]
-                )
-            )
-
-            elements.append(
-                Paragraph(
-                    f"Video : {last_video_path}",
-                    styles["Normal"]
-                )
-            )
-
-            elements.append(Spacer(1, 20))
-
-            if last_image_path:
-                img = Image(last_image_path)
-
-                img.drawWidth = 300
-                img.drawHeight = 170
-
-                elements.append(img)
-
-            print("AVANT PDF")
-            pdf.build(elements)
-            print("APRES PDF")
-
-            print("PDF cree :", report_name)
-
-            send_alert(
-                to_email="yvestoure717@gmail.com",
-                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-                intrusion_duration=intrusion_duration,
-                persons_count=max_persons_detected,
-                pdf_path=report_name,
-                image_path=last_image_path,
-                video_path=last_video_path
-            )
-
-            print("FIN VIDEO")
-
-
-    results = model(frame)
-
-    persons_in_frame = 0
-
-    for r in results:
-        for box in r.boxes:
-
-            cls = int(box.cls[0])
-            confidence = float(box.conf[0])
-
-            if cls == 0 and confidence > 0.80:
-                print(
-                    "Personne",
-                    round(confidence, 2)
-                )
-
-                last_detection_time = time.time()
-
-                persons_in_frame += 1
-
-                # Début d'une nouvelle intrusion
-                if not recording:
-
-                    intrusion_start_time = time.time()
-
-                    max_persons_detected = 0
- 
-                    timestamp = int(time.time())
-
-                    video_path = f"intrusion_{timestamp}.mp4"
-
-                    last_video_path = video_path
-
-                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-                    video_writer = cv2.VideoWriter(
-                        video_path,
-                        fourcc,
-                        10,
-                        (WIDTH, HEIGHT)
-                    )
-
-                    recording = True
-
-                    print("ALERTE INTRUSION")
-                    print(f"DEBUT VIDEO : {video_path}")
-
-                    image_path = f"intrusion_{timestamp}.jpg"
-
-                    last_image_path = image_path
-
-                    cv2.imwrite(image_path, frame)
-
-                    print(f"Photo sauvegardée : {image_path}")
-
-                current_time = time.time()
-
-                if current_time - last_alert_time > ALERT_DELAY:
-                    last_alert_time = current_time
-
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-                width = x2 - x1
-                height = y2 - y1
-
-                if cls == 0 and confidence > 0.80 and width > 50 and height > 100:
-               
-                    cv2.rectangle(
-                        frame,
-                        (x1, y1),
-                        (x2, y2),
-                        (0, 255, 0),
-                        2
-                    )
-
-                    cv2.putText(
-                        frame,
-                        "PERSONNE",
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2
-                    )
-
-    # ← ICI SEULEMENT
-
-    max_persons_detected = max(
-        max_persons_detected,
-        persons_in_frame
-    )
-
-    cv2.imshow("VIDA CAMERA", frame)
-
-    key = cv2.waitKey(1) & 0xFF
-
-    if key == ord("s"):
-        cv2.imwrite("person_test.jpg", frame)
-        print("Image sauvée")
-
-    if key == ord("q"):
-        break
+process_camera(pipe)
 
 if video_writer is not None:
     video_writer.release()
