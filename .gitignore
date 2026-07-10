@@ -15,3 +15,13 @@ frames_temp/
 logs.txt
 security_log.txt
 .env
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# macOS
+.DS_Store

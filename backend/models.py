@@ -16,10 +16,45 @@ class Camera(Base):
     __tablename__ = "cameras"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    rtsp_url = Column(String, nullable=False)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    # Identification
     name = Column(String, nullable=False)
-    zones_json = Column(String, nullable=True)  # JSON stringifié
+
+    brand = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+
+    ip_address = Column(String, nullable=True)
+
+    rtsp_url = Column(String, nullable=False)
+
+    # Organisation
+    site_name = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+
+    # État
+    status = Column(String, default="ACTIVE")
+
+    description = Column(String, nullable=True)
+
+    # Compatibilité V1
+    zones_json = Column(String, nullable=True)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
 
 class Alert(Base):
     __tablename__ = "alerts"

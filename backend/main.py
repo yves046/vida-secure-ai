@@ -1,57 +1,144 @@
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Image,
+    Table,
+    TableStyle
+)
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 from models import Alert
 from database import SessionLocal
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Form, HTTPException, Depends, Body, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse
 from database import engine, SessionLocal
 from fastapi.responses import FileResponse
 from models import Base, User, Alert
 from sqlalchemy.orm import Session
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
-from intrusion import start_detection
+import numpy as np
+import intrusion
+
+from intrusion import (
+    start_detection,
+    record_video,
+    frame_buffer
+)
+from incident_db import (
+    init_incident_db,
+    save_incident,
+    find_open_incident,
+    update_last_detection,
+    close_old_incidents
+)
+from zone_db import init_zone_db
+from camera_db import (
+    add_camera,
+    get_cameras,
+    delete_camera,
+    get_active_cameras
+)
+from mailer import send_alert
+import time
 import models
 import threading
+from queue import Queue
 import os
 import requests
 import hmac
 import hashlib
+import sqlite3
+from zones import load_camera_zones
 
 
 from database import engine
 from security import hash_password, verify_password, create_access_token
 from deps import get_db, get_current_user
 from datetime import timedelta
+from routers.cameras import router as cameras_router
+from services.report_service import create_pdf_report
+from services.alert_service import create_alert
+from dotenv import load_dotenv
+
+
+ALERT_EMAIL = "yvestoure717@gmail.com"
 
 models.Base.metadata.create_all(bind=engine)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-PAYSTACK_SECRET_KEY = "sk_test_0483a422773bd7c816e5e06b2008109279501ac1"
+load_dotenv()
+
+PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 
 app = FastAPI()
 
-import cv2
-from fastapi.responses import StreamingResponse
+app.include_router(cameras_router)
 
-camera = cv2.VideoCapture(0)
+init_incident_db()
+init_zone_db()
+
+# ==========================================
+# File d'attente des incidents
+# ==========================================
+
+incident_queue = Queue()
+
+import os
+import cv2
+
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
 def generate_frames():
+
+    zones = load_camera_zones(1)
+
     while True:
-        success, frame = camera.read()
 
-        if not success:
-            break
+        if intrusion.latest_frame is None:
+            time.sleep(0.01)
+            continue
 
-        else:
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
+        with intrusion.frame_lock:
+            frame = intrusion.latest_frame.copy()
 
-            yield (
-                b'--frame\r\n'
-                b'Content-Type: image/jpeg\r\n\r\n' +
-                frame_bytes +
-                b'\r\n'
+        for zone in zones:
+
+            pts = np.array(zone["points"], np.int32)
+            pts = pts.reshape((-1, 1, 2))
+
+            cv2.polylines(
+                frame,
+                [pts],
+                True,
+                (0, 0, 255),
+                2
             )
+
+            cv2.putText(
+                frame,
+                zone["name"],
+                tuple(pts[0][0]),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 0, 255),
+                2
+            )
+
+        ok, buffer = cv2.imencode(".jpg", frame)
+
+        if not ok:
+            continue
+
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n"
+            + buffer.tobytes()
+            + b"\r\n"
+        )
 
 @app.get("/video_feed")
 def video_feed():
@@ -72,9 +159,25 @@ app.mount(
     name="videos"
 )
 
+app.mount(
+    "/images",
+    StaticFiles(directory=BASE_DIR),
+    name="images"
+)
+
+app.mount(
+    "/pdfs",
+    StaticFiles(directory=BASE_DIR),
+    name="pdfs"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -100,13 +203,28 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
 
 
 @app.post("/login")
-def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == email).first()
-    
+def login(
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    email = username
+
+    user = (
+        db.query(models.User)
+        .filter(models.User.email == email)
+        .first()
+    )
+
     if not user or not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Identifiants invalides")
-    
-    token = create_access_token({"sub": str(user.id)})
+        raise HTTPException(
+            status_code=401,
+            detail="Identifiants invalides"
+        )
+
+    token = create_access_token(
+        {"sub": str(user.id)}
+    )
 
     return {
         "access_token": token,
@@ -133,7 +251,17 @@ def test_alert(
 
 @app.get("/dashboard")
 def dashboard(user: models.User = Depends(get_current_user)):
-    return {"message": "Bienvenue !", "email": user.email}
+
+    print("========== USER CONNECTÉ ==========")
+    print("ID :", user.id)
+    print("EMAIL :", user.email)
+    print("PAID :", user.paid)
+    print("===================================")
+
+    return {
+        "message": "Bienvenue !",
+        "email": user.email
+    }
 
 
 @app.get("/stats")
@@ -141,35 +269,71 @@ def get_stats(
     user: models.User = Depends(get_current_user)
 ):
 
+    conn = sqlite3.connect("vida_incidents.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM incidents"
+    )
+
+    total_alerts = cursor.fetchone()[0]
+
+    conn.close()
+
     return {
-        "email": user.email,
+        "cameras": 1,
+        "alerts": total_alerts,
+        "status": "ACTIVE",
         "paid": user.paid
     }
 
-
 @app.get("/alerts")
 def get_alerts(
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    
+
     # 🔒 Vérification abonnement
     if not current_user.paid:
-        raise HTTPException(status_code=403, detail="Abonnement requis")
+        raise HTTPException(
+            status_code=403,
+            detail="Abonnement requis"
+        )
 
-    alerts = db.query(models.Alert)\
-        .filter(models.Alert.user_id == current_user.id)\
-        .order_by(models.Alert.timestamp.desc())\
-        .all()
+    conn = sqlite3.connect("vida_incidents.db")
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    print(
+        "ALERTS POUR USER =",
+        current_user.id
+    )
+
+    cursor.execute("""
+        SELECT *
+        FROM incidents
+        WHERE user_id = ?
+        ORDER BY id DESC
+        LIMIT 20
+    """, (current_user.id,)) 
+
+    incidents = cursor.fetchall()
+
+    conn.close()
 
     return [
         {
-            "id": a.id,
-            "message": a.message,
-            "video_url": f"http://127.0.0.1:8000/secure-video/{a.video_url}",
-            "timestamp": a.timestamp
+            "id": row["incident_id"],
+            "type": row["alert_level"],
+            "zone": row["zone_name"],
+            "persons": row["persons_count"],
+            "timestamp": row["timestamp"],
+
+            "image":row["image_path"],
+            "video": row["video_path"],
+            "pdf": row["pdf_path"]
         }
-        for a in alerts
+        for row in incidents
     ]
 
 @app.get("/payment-success")
@@ -337,24 +501,66 @@ async def paystack_webhook(
 
     return {"status": "success"}
 
+def incident_maintenance():
+     
+     while True:
+         
+         print("Vérification des incidents...")
+
+         close_old_incidents()
+
+         time.sleep(30)
+
+
 @app.on_event("startup")
 def start_camera():
-    thread = threading.Thread(
-        target=start_detection,
-        args=("rtsp://Yves040:Yves46839488@10.10.10.33:554/stream1", create_alert)
+
+    conn = sqlite3.connect("vida_incidents.db")
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM cameras
+        WHERE status = 'ACTIVE'
+    """)
+
+    cameras = cursor.fetchall()
+
+    conn.close()
+
+    print("=" * 50)
+    print(f"CAMÉRAS TROUVÉES : {len(cameras)}")
+    print("=" * 50)
+
+    for camera in cameras:
+
+        print(
+            f"Lancement : {camera['name']}"
+        )
+
+        thread = threading.Thread(
+            target=start_detection,
+            args=(
+                camera["rtsp_url"],
+                camera["user_id"],
+                create_alert
+            )
+        )
+
+        thread.daemon = True
+        thread.start()
+
+    print("=" * 50)
+    print("SURVEILLANCE DÉMARRÉE")
+    print("=" * 50)
+
+    maintenance_thread = threading.Thread(
+        target=incident_maintenance
     )
-    thread.daemon = True
-    thread.start()
 
-def create_alert(video_filename):
-    db = SessionLocal()
+    maintenance_thread.daemon = True
+    maintenance_thread.start()
 
-    new_alert = Alert(
-        user_id=1,  # ⚠️ mets un user existant en base
-        message="Intrusion détectée",
-        video_url=video_filename
-    )
-
-    db.add(new_alert)
-    db.commit()
-    db.close()
+    print("Maintenance des incidents démarrée")

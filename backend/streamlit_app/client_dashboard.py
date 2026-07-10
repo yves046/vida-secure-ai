@@ -4,7 +4,12 @@ import threading
 import queue
 import json
 import requests
+import time
+from ultralytics import YOLO
 from PIL import Image, ImageDraw
+
+from components.sidebar import render_sidebar
+from components.camera_card import render_camera_card
 
 # -----------------
 # Configuration page
@@ -25,6 +30,11 @@ st.markdown("""
 API_URL = "http://127.0.0.1:8000"
 
 # -----------------
+# Chargement du modèle IA
+# -----------------
+model = YOLO("yolov8n.pt")
+
+# -----------------
 # Auth
 # -----------------
 if "token" not in st.session_state:
@@ -39,7 +49,7 @@ def login():
     password_input = st.text_input("Password", type="password")
 
     if st.button("Se connecter"):
-        r = requests.post(f"{API_URL}/login", data={"email": email_input, "password": password_input})
+        r = requests.post(f"{API_URL}/login", data={"username": email_input, "password": password_input})
         if r.status_code == 200:
             st.session_state.token = r.json()["access_token"]
             st.session_state.email = email_input
@@ -52,13 +62,23 @@ if not st.session_state.token:
     login()
     st.stop()
 
+page = render_sidebar()
+
+from modules.cameras import render as render_cameras
+
 # -----------------
 # Dashboard (après login)
 # -----------------
-st.title("Vida Secure AI Pro - Dashboard")
+if page == "🏠 Tableau de bord":
 
-# ⚠️ Si tu n'as pas de logo
-# st.image("assets/logo.png", width=200)
+    st.markdown("""
+    # 🛡️ VIDA Secure AI
+
+    ### Surveillance intelligente 24h/24 • 7j/7
+    """)
+
+    # ⚠️ Si tu n'as pas de logo
+    # st.image("assets/logo.png", width=200)
 
 # -----------------
 # Header autorisation
@@ -89,57 +109,42 @@ if st.button("Payer 79 € avec Paystack (Test)", use_container_width=True):
 r = requests.get(f"{API_URL}/cameras", headers=headers)
 cameras = r.json() if r.status_code == 200 else []
 
+st.write("Status API :", r.status_code)
+st.write("Réponse API :", r.text)
+
+st.write(cameras)
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("📹 Caméras", len(cameras))
+
+with col2:
+    st.metric("🚨 Incidents", "--")
+
+with col3:
+    st.metric("🛡️ Zones", "--")
+
+with col4:
+    st.metric("🟢 Système", "En ligne")
+
 if not cameras:  
     st.warning("Aucune caméra configurée")
     st.stop()
 
 # -----------------
-# Thread capture frames
+# Affichage des caméras (V1)
 # -----------------
-def capture_frames(rtsp_url, q):
-    cap = cv2.VideoCapture(rtsp_url)
-    while True:
-        ret, frame = cap.read()
-        if ret:
-            q.put(frame)
-        else:
-            q.put(None)
 
-# -----------------
-# Affichage grille caméras
-# -----------------
 num_cols = 1 if len(cameras) <= 1 else 2 if len(cameras) <= 4 else 3
 cols = st.columns(num_cols)
-threads = [] 
-queues = []  
 
 for i, cam in enumerate(cameras):
+
     with cols[i % num_cols]:
-        st.subheader(cam["name"])
-        placeholder = st.empty()
-        q = queue.Queue(maxsize=1)
-        queues.append(q)
-        t = threading.Thread(target=capture_frames, args=(cam["rtsp_url"], q), daemon=True)
-        t.start()
-        threads.append(t)
-
-        zones = json.loads(cam["zones_json"]) if cam["zones_json"] else []
-
-        while True:
-            frame = q.get()
-            if frame is None:  
-                placeholder.error("Flux interrompu")
-                break   
         
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_img = Image.fromarray(rgb)
-            draw = ImageDraw.Draw(pil_img)
+        render_camera_card(cam)
 
-            # Dessin zones 
-            for zone in zones:   
-                draw.rectangle([zone["x"], zone["y"], zone["x"]+zone["w"], zone["y"]+zone["h"]], outline="red", width=3)
-        
-            placeholder.image(pil_img, use_column_width=True)
 
 # -----------------
 # Vérif paiement
