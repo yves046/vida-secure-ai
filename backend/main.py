@@ -60,6 +60,7 @@ from deps import get_db, get_current_user
 from datetime import timedelta
 from routers.cameras import router as cameras_router
 from routers.auth import router as auth_router
+from routers.dashboard import router as dashboard_router
 from services.report_service import create_pdf_report
 from services.alert_service import create_alert
 from dotenv import load_dotenv
@@ -79,6 +80,7 @@ app = FastAPI()
 
 app.include_router(cameras_router)
 app.include_router(auth_router)
+app.include_router(dashboard_router)
 
 init_incident_db()
 init_zone_db()
@@ -203,92 +205,6 @@ def test_alert(
 
     return {"status": "saved"}
 
-@app.get("/dashboard")
-def dashboard(user: models.User = Depends(get_current_user)):
-
-    print("========== USER CONNECTÉ ==========")
-    print("ID :", user.id)
-    print("EMAIL :", user.email)
-    print("PAID :", user.paid)
-    print("===================================")
-
-    return {
-        "message": "Bienvenue !",
-        "email": user.email
-    }
-
-
-@app.get("/stats")
-def get_stats(
-    user: models.User = Depends(get_current_user)
-):
-
-    conn = sqlite3.connect("vida_incidents.db")
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT COUNT(*) FROM incidents"
-    )
-
-    total_alerts = cursor.fetchone()[0]
-
-    conn.close()
-
-    return {
-        "cameras": 1,
-        "alerts": total_alerts,
-        "status": "ACTIVE",
-        "paid": user.paid
-    }
-
-@app.get("/alerts")
-def get_alerts(
-    current_user: models.User = Depends(get_current_user)
-):
-
-    # 🔒 Vérification abonnement
-    if not current_user.paid:
-        raise HTTPException(
-            status_code=403,
-            detail="Abonnement requis"
-        )
-
-    conn = sqlite3.connect("vida_incidents.db")
-    conn.row_factory = sqlite3.Row
-
-    cursor = conn.cursor()
-
-    print(
-        "ALERTS POUR USER =",
-        current_user.id
-    )
-
-    cursor.execute("""
-        SELECT *
-        FROM incidents
-        WHERE user_id = ?
-        ORDER BY id DESC
-        LIMIT 20
-    """, (current_user.id,)) 
-
-    incidents = cursor.fetchall()
-
-    conn.close()
-
-    return [
-        {
-            "id": row["incident_id"],
-            "type": row["alert_level"],
-            "zone": row["zone_name"],
-            "persons": row["persons_count"],
-            "timestamp": row["timestamp"],
-
-            "image":row["image_path"],
-            "video": row["video_path"],
-            "pdf": row["pdf_path"]
-        }
-        for row in incidents
-    ]
 
 @app.get("/payment-success")
 def payment_success(reference: str, db: Session = Depends(get_db)):
