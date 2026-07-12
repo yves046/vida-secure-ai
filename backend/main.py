@@ -58,12 +58,16 @@ from database import engine
 from security import hash_password, verify_password, create_access_token
 from deps import get_db, get_current_user
 from datetime import timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from routers.cameras import router as cameras_router
 from routers.auth import router as auth_router
 from routers.dashboard import router as dashboard_router
+from routers.payments import router as payments_router
 from services.report_service import create_pdf_report
 from services.alert_service import create_alert
-from dotenv import load_dotenv
 
 
 ALERT_EMAIL = "yvestoure717@gmail.com"
@@ -72,8 +76,6 @@ models.Base.metadata.create_all(bind=engine)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-load_dotenv()
-
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 
 app = FastAPI()
@@ -81,6 +83,7 @@ app = FastAPI()
 app.include_router(cameras_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(payments_router)
 
 init_incident_db()
 init_zone_db()
@@ -205,42 +208,6 @@ def test_alert(
 
     return {"status": "saved"}
 
-
-@app.get("/payment-success")
-def payment_success(reference: str, db: Session = Depends(get_db)):
-    url = f"https://api.paystack.co/transaction/verify/{reference}"
-
-    headers = {
-        "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"
-    }
-
-    response = requests.get(url, headers=headers)
-    data = response.json()
-
-    if data["data"]["status"] == "success":
-        email = data["data"]["customer"]["email"]
-
-        user = db.query(models.User).filter(models.User.email == email).first()
-
-        if user:
-            user.paid = True
-            user.paid_until = datetime.utcnow() + timedelta(days=30)
-            db.commit()
-
-        return {"message": "Paiement validé"}
-
-    return {"message": "Paiement échoué"}
-
-@app.get("/activate-payment")
-def activate_payment(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    user.paid = True
-    db.commit()
-    return {"message": "Paiement activé"}
-
-@app.get("/payment-success")
-def payment_success():
-    return {"message": "Paiement reçu avec succès"}
-
 @app.get("/secure-video/{filename}")
 def get_video(
     filename: str,
@@ -307,69 +274,6 @@ def send_alert_email(to_email: str, photo_path: str, clip_path: str, pdf_path: s
         print(f"Email envoyé à {to_email}")
     except Exception as e:
         print(f"Erreur email: {e}")
-
-@app.post("/init-payment")
-def init_payment(user: models.User = Depends(get_current_user)):
-    url = "https://api.paystack.co/transaction/initialize"
-    
-    headers = {
-        "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
-        "Content-Type": "application/json"
-    }
-            
-    data = {
-        "email": user.email,
-        "amount": 5000 * 100,
-        "callback_url": "http://localhost:8501/?payment=success"
-    }
-            
-    response = requests.post(url, json=data, headers=headers)
-
-    print("PAYSTACK RESPONSE:", response.text)  # 🔴 debug
-
-    return response.json()
-
-@app.post("/paystack/webhook")
-async def paystack_webhook(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-
-    payload = await request.body()
-
-    signature = request.headers.get("x-paystack-signature")
-
-    computed_signature = hmac.new(
-        PAYSTACK_SECRET_KEY.encode(),
-        payload,
-        hashlib.sha512
-    ).hexdigest()
-
-    if signature != computed_signature:
-        raise HTTPException(
-            status_code=400,
-            detail="Signature invalide"
-        )
-
-    event = await request.json()
-
-    if event["event"] == "charge.success":
-
-        email = event["data"]["customer"]["email"]
-
-        user = db.query(models.User).filter(
-            models.User.email == email
-        ).first()
-
-        if user:
-
-            user.paid = True
-
-            db.commit()
-
-            print(f"PAIEMENT ACTIVE POUR : {email}")
-
-    return {"status": "success"}
 
 def incident_maintenance():
      
