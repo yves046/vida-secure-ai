@@ -59,6 +59,7 @@ from security import hash_password, verify_password, create_access_token
 from deps import get_db, get_current_user
 from datetime import timedelta
 from routers.cameras import router as cameras_router
+from routers.auth import router as auth_router
 from services.report_service import create_pdf_report
 from services.alert_service import create_alert
 from dotenv import load_dotenv
@@ -77,6 +78,7 @@ PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 app = FastAPI()
 
 app.include_router(cameras_router)
+app.include_router(auth_router)
 
 init_incident_db()
 init_zone_db()
@@ -182,54 +184,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ===================== ROUTES AUTH =====================
-@app.post("/register")
-def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == email).first()
-
-    if user is not None:
-        raise HTTPException(status_code=400, detail="Email déjà utilisé")
-
-    new_user = models.User(
-        email=email,
-        password_hash=hash_password(password)
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {"message": "Utilisateur créé"}
-
-
-@app.post("/login")
-def login(
-    username: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    email = username
-
-    user = (
-        db.query(models.User)
-        .filter(models.User.email == email)
-        .first()
-    )
-
-    if not user or not verify_password(password, user.password_hash):
-        raise HTTPException(
-            status_code=401,
-            detail="Identifiants invalides"
-        )
-
-    token = create_access_token(
-        {"sub": str(user.id)}
-    )
-
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }
 
 @app.post("/test-alert")
 def test_alert(
