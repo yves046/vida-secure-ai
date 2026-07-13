@@ -1,7 +1,7 @@
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from database import engine
+from database import engine, SessionLocal
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
@@ -14,7 +14,6 @@ import time
 import models
 import threading
 import os
-import sqlite3
 from zones import load_camera_zones
 
 
@@ -178,20 +177,16 @@ def incident_maintenance():
 @app.on_event("startup")
 def start_camera():
 
-    conn = sqlite3.connect("vida_incidents.db")
-    conn.row_factory = sqlite3.Row
+    db = SessionLocal()
 
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT *
-        FROM cameras
-        WHERE status = 'ACTIVE'
-    """)
-
-    cameras = cursor.fetchall()
-
-    conn.close()
+    try:
+        cameras = (
+            db.query(models.Camera)
+            .filter(models.Camera.status == "ACTIVE")
+            .all()
+        )
+    finally:
+        db.close()
 
     print("=" * 50)
     print(f"CAMÉRAS TROUVÉES : {len(cameras)}")
@@ -206,8 +201,8 @@ def start_camera():
         thread = threading.Thread(
             target=start_detection,
             args=(
-                camera["rtsp_url"],
-                camera["user_id"],
+                camera.rtsp_url,
+                camera.user_id,
                 create_alert
             )
         )
