@@ -25,3 +25,4 @@ security_log.txt
 
 # macOS
 .DS_Store
+*.db.backup

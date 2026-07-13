@@ -1,9 +1,6 @@
 import os
 import time
 
-from database import SessionLocal
-from models import Alert
-
 from intrusion import record_video, frame_buffer
 
 from incident_db import (
@@ -49,18 +46,6 @@ def create_alert(user_id, cap, detection):
 
         video_filename = files["video"]
         image_filename = files["image"]
-
-        db = SessionLocal()
-
-        new_alert = Alert(
-            user_id=user_id,
-            message="Intrusion détectée",
-            video_url=video_filename
-        )
-
-        db.add(new_alert)
-        db.commit()
-        db.close()
 
         print("CHEMIN VIDEO :", video_filename)
 

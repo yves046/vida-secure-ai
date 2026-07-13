@@ -8,7 +8,6 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-from models import Alert
 from database import SessionLocal
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Form, HTTPException, Depends, Body, BackgroundTasks, Request
@@ -190,24 +189,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/test-alert")
-def test_alert(
-    data: dict,
-    user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    alert = models.Alert(
-        user_id=user.id,
-        message=data.get("message"),
-        video_url=data.get("video_url"),
-        timestamp=datetime.utcnow()
-    )
-
-    db.add(alert)
-    db.commit()
-
-    return {"status": "saved"}
-
 @app.get("/secure-video/{filename}")
 def get_video(
     filename: str,
@@ -223,19 +204,6 @@ def get_video(
         raise HTTPException(status_code=404, detail="Vidéo introuvable")
 
     return FileResponse(filepath, media_type="video/mp4")
-
-# ===================== TEST ALERT (photo + vidéo + PDF) =====================
-@app.post("/test-alert")
-def test_alert():
-    user = db.query(User).first()  # ou ton vrai filtre
-
-    if not user:
-        return {"error": "User non trouvé"}
-
-    if not user.paid:
-        return {"error": "Utilisateur non abonné"}
-
-    return {"message": "Alerte envoyée"}
 
 def send_alert_email(to_email: str, photo_path: str, clip_path: str, pdf_path: str, timestamp: str):
     msg = MIMEMultipart()
