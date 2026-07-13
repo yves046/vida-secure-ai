@@ -195,7 +195,7 @@ def start_camera():
     for camera in cameras:
 
         print(
-            f"Lancement : {camera['name']}"
+            f"Lancement : {camera.name}"
         )
 
         thread = threading.Thread(
