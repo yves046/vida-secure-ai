@@ -1,62 +1,25 @@
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Image,
-    Table,
-    TableStyle
-)
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from database import SessionLocal
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, Form, HTTPException, Depends, Body, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from database import engine, SessionLocal
+from database import engine
 from fastapi.responses import FileResponse
-from models import Base, User, Alert
-from sqlalchemy.orm import Session
-from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import intrusion
 
-from intrusion import (
-    start_detection,
-    record_video,
-    frame_buffer
-)
-from incident_db import (
-    init_incident_db,
-    save_incident,
-    find_open_incident,
-    update_last_detection,
-    close_old_incidents
-)
+from intrusion import start_detection
+from incident_db import init_incident_db, close_old_incidents
 from zone_db import init_zone_db
-from camera_db import (
-    add_camera,
-    get_cameras,
-    delete_camera,
-    get_active_cameras
-)
-from mailer import send_alert
 import time
 import models
 import threading
-from queue import Queue
 import os
-import requests
-import hmac
-import hashlib
 import sqlite3
 from zones import load_camera_zones
 
 
 from database import engine
-from security import hash_password, verify_password, create_access_token
-from deps import get_db, get_current_user
-from datetime import timedelta
+from deps import get_current_user
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -65,17 +28,14 @@ from routers.cameras import router as cameras_router
 from routers.auth import router as auth_router
 from routers.dashboard import router as dashboard_router
 from routers.payments import router as payments_router
-from services.report_service import create_pdf_report
 from services.alert_service import create_alert
 
 
-ALERT_EMAIL = "yvestoure717@gmail.com"
 
 models.Base.metadata.create_all(bind=engine)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
 
 app = FastAPI()
 
@@ -91,7 +51,6 @@ init_zone_db()
 # File d'attente des incidents
 # ==========================================
 
-incident_queue = Queue()
 
 import os
 import cv2
