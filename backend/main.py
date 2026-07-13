@@ -205,44 +205,6 @@ def get_video(
 
     return FileResponse(filepath, media_type="video/mp4")
 
-def send_alert_email(to_email: str, photo_path: str, clip_path: str, pdf_path: str, timestamp: str):
-    msg = MIMEMultipart()
-    msg["From"] = os.getenv("EMAIL_USER")
-    msg["To"] = to_email
-    msg["Subject"] = f"Alerte Intrusion - {timestamp}"
-
-    body = f"Alerte intrusion détectée à {timestamp}\n\nFichiers joints :"
-    msg.attach(MIMEText(body, "plain"))
-
-    # Photo
-    if os.path.exists(photo_path):
-        with open(photo_path, "rb") as f:
-            msg.attach(MIMEImage(f.read(), name=f"photo_{timestamp}.jpg"))
-
-    # Clip
-    if os.path.exists(clip_path):
-        with open(clip_path, "rb") as f:
-            part = MIMEApplication(f.read(), _subtype="mp4")
-            part.add_header("Content-Disposition", "attachment", filename=f"clip_{timestamp}.mp4")
-            msg.attach(part)
-
-    # PDF
-    if os.path.exists(pdf_path):
-        with open(pdf_path, "rb") as f:
-            part = MIMEApplication(f.read(), _subtype="pdf")
-            part.add_header("Content-Disposition", "attachment", filename=f"report_{timestamp}.pdf")
-            msg.attach(part)
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
-        server.send_message(msg)
-        server.quit()
-        print(f"Email envoyé à {to_email}")
-    except Exception as e:
-        print(f"Erreur email: {e}")
-
 def incident_maintenance():
      
      while True:
