@@ -3,6 +3,7 @@ import API from "../api";
 
 function CameraManager() {
   const [cameras, setCameras] = useState([]);
+  const [updatingCameraId, setUpdatingCameraId] = useState(null);
 
   const [cameraName, setCameraName] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -67,6 +68,41 @@ function CameraManager() {
 
       console.log(err);
       alert("Impossible d'ajouter la caméra.");
+    }
+  };
+
+  const toggleCameraEnabled = async (camera) => {
+    try {
+      setUpdatingCameraId(camera.id);
+
+      const token = localStorage.getItem("token");
+
+      await API.put(
+        `/cameras/${camera.id}`,
+        {
+          is_enabled: !camera.is_enabled,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await loadCameras();
+
+    } catch (err) {
+      console.log(err);
+
+      const detail = err.response?.data?.detail;
+
+      alert(
+        detail ||
+        "Impossible de modifier l'état de la caméra."
+      );
+
+    } finally {
+      setUpdatingCameraId(null);
     }
   };
 
@@ -151,9 +187,63 @@ function CameraManager() {
                 Emplacement : {cam.location || "Non renseigné"}
               </p>
 
-              <p className="text-green-400 mt-2">
-                {cam.status}
-              </p>
+              <div className="mt-4 space-y-2">
+
+                <p>
+                  <span className="text-gray-400">
+                    Surveillance :
+                  </span>{" "}
+
+                  <span
+                    className={
+                      cam.is_enabled
+                        ? "text-green-400 font-semibold"
+                        : "text-gray-400 font-semibold"
+                    }
+                  >
+                    {cam.is_enabled
+                      ? "ACTIVÉE"
+                      : "DÉSACTIVÉE"}
+                  </span>
+                </p>
+
+                <p>
+                  <span className="text-gray-400">
+                    Flux caméra :
+                  </span>{" "}
+
+                  <span
+                    className={
+                      cam.status === "ACTIVE"
+                        ? "text-green-400 font-semibold"
+                        : "text-red-400 font-semibold"
+                    }
+                  >
+                    {cam.status === "ACTIVE"
+                      ? "EN LIGNE"
+                      : "HORS LIGNE"}
+                  </span>
+                </p>
+
+              </div>
+
+              <button
+                onClick={() => toggleCameraEnabled(cam)}
+                disabled={updatingCameraId === cam.id}
+                className={`mt-5 px-4 py-2 rounded-lg font-semibold ${
+                  updatingCameraId === cam.id
+                    ? "bg-gray-600 cursor-not-allowed"
+                    : cam.is_enabled
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {updatingCameraId === cam.id
+                  ? "Modification..."
+                  : cam.is_enabled
+                    ? "Désactiver la surveillance"
+                    : "Activer la surveillance"}
+              </button>
 
             </div>
           ))}
