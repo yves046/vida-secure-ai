@@ -7,7 +7,7 @@ export default function Login() {
 
   const login = async () => {
   try {
-    const body = `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
+    const body = `username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
 
     const res = await fetch("http://127.0.0.1:8000/login", {
       method: "POST",

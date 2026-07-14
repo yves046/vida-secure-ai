@@ -1,3 +1,4 @@
+import CameraManager from "./components/CameraManager";
 import { useEffect, useState } from "react";
 import API from "./api";
 
@@ -5,6 +6,7 @@ function Dashboard() {
   const [email, setEmail] = useState("Chargement...");
   const [stats, setStats] = useState({ cameras: 0, alerts: 0 });
   const [alerts, setAlerts] = useState([]);
+  const [evidenceUrls, setEvidenceUrls] = useState({});
 
   // 🔹 FETCH USER
   const fetchUser = async () => {
@@ -60,10 +62,63 @@ function Dashboard() {
       });
 
       setAlerts(res.data);
+      await fetchSecureEvidence(res.data);
 
     } catch (err) {
       console.log(err);
     }
+  };
+
+  // 🔹 FETCH SECURE EVIDENCE
+  const fetchSecureEvidence = async (alertsData) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      return;
+    }
+
+    const urls = {};
+
+    for (const alert of alertsData) {
+      urls[alert.id] = {};
+
+      for (const type of ["image", "video", "pdf"]) {
+        const securePath = alert[type];
+
+        if (!securePath) {
+          continue;
+        }
+
+        try {
+          const response = await API.get(securePath, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            responseType: "blob",
+          });
+
+          urls[alert.id][type] = URL.createObjectURL(
+            response.data
+          );
+
+        } catch (err) {
+          console.error(
+            `Erreur chargement ${type} pour ${alert.id}`,
+            err
+          );
+        }
+      }
+    }
+
+    setEvidenceUrls((previousUrls) => {
+      Object.values(previousUrls).forEach((evidence) => {
+        Object.values(evidence).forEach((url) => {
+          URL.revokeObjectURL(url);
+        });
+      });
+
+      return urls;
+    });
   };
 
   // 🔹 LOAD ALL DATA
@@ -162,14 +217,76 @@ function Dashboard() {
           ) : (
             <div className="space-y-3">
               {alerts.map((a) => (
-                <div key={a.id} className="bg-gray-800 p-4 rounded">
-                  <p className="text-red-400 font-bold">{a.type}</p>
-                  <p className="text-gray-400 text-sm">{a.timestamp}</p>
+                <div
+                  key={a.id}
+                  className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg"
+                >
+                  <div className="flex justify-between items-center">
+                    <p 
+                      className={`font-bold text-lg ${
+                        a.type === "CRITIQUE"
+                          ? "text-red-500"
+                          : a.type === "ÉLEVÉ"
+                          ? "text-orange-400"
+                          : a.type === "MODÉRÉ"
+                          ? "text-yellow-400"
+                          : "text-green-400"
+                      }`}
+                    >
+                      {a.type}
+                    </p>
+
+                    <span className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">
+                      ALERTE
+                    </span>
+                  </div>
+
+                  <p className="text-white mt-3">
+                    📍 Zone : <span className="font-semibold">{a.zone}</span>
+                  </p>
+
+                  <p className="text-gray-300 mt-1">
+                    👤 Personnes détectées : {a.persons}
+                  </p>
+
+                  <p className="text-gray-500 text-sm mt-3">
+                    {a.timestamp}
+                  </p>
+
+                  {evidenceUrls[a.id]?.image && (
+                    <img
+                      src={evidenceUrls[a.id].image}
+                      alt="Intrusion"
+                      className="w-full rounded-lg mt-3"
+                    />
+                  )}
+                  {evidenceUrls[a.id]?.video && (
+                    <div className="mt-4">
+                      <video
+                        controls
+                        src={evidenceUrls[a.id].video}
+                        className="w-full rounded-lg border border-gray-700"
+                      >
+                        Votre navigateur ne supporte pas la vidéo.
+                      </video>
+                    </div>
+                  )}
+                  {evidenceUrls[a.id]?.pdf && (
+                    <a
+                      href={evidenceUrls[a.id].pdf}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block mt-3 text-cyan-400"
+                    >
+                      Télécharger le rapport PDF
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
+        <CameraManager />
       </main>
     </div>
   );
