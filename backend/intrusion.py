@@ -11,6 +11,9 @@ from collections import deque
 camera_states = {}
 camera_states_lock = threading.Lock()
 
+active_detection_cameras = set()
+active_detection_lock = threading.Lock()
+
 
 def get_camera_state(camera_id):
     with camera_states_lock:
@@ -24,6 +27,7 @@ def get_camera_state(camera_id):
                 "frame_lock": threading.Lock(),
                 "ai_queue": Queue(maxsize=1),
                 "result_queue": Queue(maxsize=1),
+                "stop_event": threading.Event(),
                 "model": YOLO("yolov8n.pt"),
             }
 
@@ -31,17 +35,48 @@ def get_camera_state(camera_id):
 
         return camera_states[camera_id]
 
+def stop_camera_detection(camera_id):
+
+    with camera_states_lock:
+        state = camera_states.get(camera_id)
+
+    if state is None:
+        print(
+            f"CAMÉRA {camera_id} : "
+            "aucun état actif à arrêter."
+        )
+
+        with active_detection_lock:
+            active_detection_cameras.discard(camera_id)
+
+        return False
+
+    stop_event = state["stop_event"]
+    stop_event.set()
+
+    with state["frame_lock"]:
+        state["latest_frame"] = None
+
+    print(
+        f"CAMÉRA {camera_id} : "
+        "arrêt de la détection demandé."
+    )
+
+    return True
+
+
 def capture_camera(cap, camera_id, rtsp_url):
 
     state = get_camera_state(camera_id)
     frame_lock = state["frame_lock"]
     ai_queue = state["ai_queue"]
+    stop_event = state["stop_event"]
 
     consecutive_failures = 0
     max_failures = 10
     reconnect_delay = 5
 
-    while True:
+    while not stop_event.is_set():
 
         ret, frame = cap.read()
 
@@ -64,7 +99,7 @@ def capture_camera(cap, camera_id, rtsp_url):
 
             cap.release()
 
-            while True:
+            while not stop_event.is_set():
                 print(
                     f"CAMÉRA {camera_id} : "
                     f"tentative de reconnexion dans {reconnect_delay} secondes."
@@ -120,14 +155,18 @@ def ai_worker(camera_id):
     state = get_camera_state(camera_id)
     ai_queue = state["ai_queue"]
     result_queue = state["result_queue"]
+    stop_event = state["stop_event"]
 
     zones = []
     last_zones_reload = 0
     ZONES_RELOAD_INTERVAL = 2
 
-    while True:
+    while not stop_event.is_set():
 
-        frame = ai_queue.get()
+        try:
+            frame = ai_queue.get(timeout=1)
+        except Exception:
+            continue
 
         if frame is None:
             continue
@@ -197,12 +236,31 @@ def update_camera_status(camera_id, status):
 
 
 def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
+
+    with active_detection_lock:
+        if camera_id in active_detection_cameras:
+            print(
+                f"CAMÉRA {camera_id} : "
+                "détection déjà active, double démarrage refusé."
+            )
+            return False
+
+        active_detection_cameras.add(camera_id)
+
+    print(
+        f"CAMÉRA {camera_id} : "
+        "détection réservée et démarrage autorisé."
+    )
+
     state = get_camera_state(camera_id)
 
     frame_buffer = state["frame_buffer"]
     frame_lock = state["frame_lock"]
     result_queue = state["result_queue"]
     tracked_persons = state["tracked_persons"]
+    stop_event = state["stop_event"]
+
+    stop_event.clear()
 
     cap = cv2.VideoCapture(rtsp_url)
 
@@ -213,6 +271,10 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
         )
         update_camera_status(camera_id, "OFFLINE")
         cap.release()
+
+        with active_detection_lock:
+            active_detection_cameras.discard(camera_id)
+
         return False
 
     ret, first_frame = cap.read()
@@ -224,6 +286,10 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
         )
         update_camera_status(camera_id, "OFFLINE")
         cap.release()
+
+        with active_detection_lock:
+            active_detection_cameras.discard(camera_id)
+
         return False
 
     with frame_lock:
@@ -267,153 +333,166 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
     last_zones_reload = 0
     ZONES_RELOAD_INTERVAL = 2
 
-    while True:
+    try:
+        while not stop_event.is_set():
 
-        now = time.time()
+            now = time.time()
 
-        if now - last_zones_reload >= ZONES_RELOAD_INTERVAL:
-            zones = load_camera_zones(camera_id)
-            last_zones_reload = now
+            if now - last_zones_reload >= ZONES_RELOAD_INTERVAL:
+                zones = load_camera_zones(camera_id)
+                last_zones_reload = now
 
-        with frame_lock:
-            latest_frame = state["latest_frame"]
+            with frame_lock:
+                latest_frame = state["latest_frame"]
 
-            if latest_frame is not None:
-                frame = latest_frame.copy()
+                if latest_frame is not None:
+                    frame = latest_frame.copy()
 
-        if latest_frame is None:
-            time.sleep(0.1)
-            continue
-
-        frame_buffer.append(frame.copy())
-
-        for zone in zones:
-
-            pts = np.array(zone["points"], np.int32)
-            pts = pts.reshape((-1, 1, 2))
-
-            cv2.polylines(
-                frame,
-                [pts],
-                True,
-                (0, 0, 255),
-                2
-            )
-
-            cv2.putText(
-                frame,
-                zone["name"],
-                tuple(zone["points"][0]),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 0, 255),
-                2
-            )
-
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        if prev_frame is None:
-            prev_frame = gray
-            continue
-
-        diff = cv2.absdiff(prev_frame, gray)
-        _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
-
-        motion_score = thresh.sum()
-
-        # Récupération du dernier résultat IA
-        if not result_queue.empty():
-            last_detection = result_queue.get()
-
-        detection = last_detection
-
-        intrusion_confirmed = False
-        triggered_zone_name = None
-        triggered_persons_count = 0
-        triggered_intrusion_duration = 0
-
-        for person in detection["boxes"]:
-
-            track_id = person["track_id"]
-
-            if (
-                person["inside_zone"]
-                and track_id is not None
-                and track_id in tracked_persons
-                and tracked_persons[track_id]["zone_name"] == person["zone_name"]
-                and tracked_persons[track_id]["zone_duration"] >= MIN_PRESENCE
-            ):
-                intrusion_confirmed = True
-                triggered_zone_name = person["zone_name"]
-                break
-
-        if triggered_zone_name is not None:
-
-            persons_in_triggered_zone = [
-                person
-                for person in detection["boxes"]
-                if (
-                    person.get("inside_zone")
-                    and person.get("zone_name") == triggered_zone_name
-                )
-            ]
-
-            triggered_persons_count = len(
-                persons_in_triggered_zone
-            )
-
-            triggered_intrusion_duration = max(
-                (
-                    float(person.get("zone_duration", 0))
-                    for person in persons_in_triggered_zone
-                ),
-                default=0
-            )
-
-        if (
-            motion_score > 8000000
-            and intrusion_confirmed
-            and time.time() - last_detection_time > COOLDOWN_INTRUSION
-        ):
-
-
-            annotated_frame = draw_detections(
-                frame.copy(),
-                detection
-            )
-
-            if not detection["detected"]:
-                prev_frame = gray
-                cleanup_tracked_persons(camera_id)
+            if latest_frame is None:
+                time.sleep(0.1)
                 continue
 
-            print(
-                f"YOLO : {detection['persons']} personne(s) "
-                f"(confiance {detection['best_confidence']:.2f})"
-            )
+            frame_buffer.append(frame.copy())
 
-            last_detection_time = time.time()
+            for zone in zones:
 
-            print("PERSONNE DÉTECTÉE PAR YOLO")
+                pts = np.array(zone["points"], np.int32)
+                pts = pts.reshape((-1, 1, 2))
 
-            threading.Thread(
-                target=create_alert_callback,
-                args=(
-                    user_id,
-                    camera_id,
-                    triggered_zone_name,
-                    triggered_persons_count,
-                    triggered_intrusion_duration,
+                cv2.polylines(
+                    frame,
+                    [pts],
+                    True,
+                    (0, 0, 255),
+                    2
+                )
+
+                cv2.putText(
+                    frame,
+                    zone["name"],
+                    tuple(zone["points"][0]),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 0, 255),
+                    2
+                )
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            if prev_frame is None:
+                prev_frame = gray
+                continue
+
+            diff = cv2.absdiff(prev_frame, gray)
+            _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+
+            motion_score = thresh.sum()
+
+            # Récupération du dernier résultat IA
+            if not result_queue.empty():
+                last_detection = result_queue.get()
+
+            detection = last_detection
+
+            intrusion_confirmed = False
+            triggered_zone_name = None
+            triggered_persons_count = 0
+            triggered_intrusion_duration = 0
+
+            for person in detection["boxes"]:
+
+                track_id = person["track_id"]
+
+                if (
+                    person["inside_zone"]
+                    and track_id is not None
+                    and track_id in tracked_persons
+                    and tracked_persons[track_id]["zone_name"] == person["zone_name"]
+                    and tracked_persons[track_id]["zone_duration"] >= MIN_PRESENCE
+                ):
+                    intrusion_confirmed = True
+                    triggered_zone_name = person["zone_name"]
+                    break
+
+            if triggered_zone_name is not None:
+
+                persons_in_triggered_zone = [
+                    person
+                    for person in detection["boxes"]
+                    if (
+                        person.get("inside_zone")
+                        and person.get("zone_name") == triggered_zone_name
+                    )
+                ]
+
+                triggered_persons_count = len(
+                    persons_in_triggered_zone
+                )
+
+                triggered_intrusion_duration = max(
+                    (
+                        float(person.get("zone_duration", 0))
+                        for person in persons_in_triggered_zone
+                    ),
+                    default=0
+                )
+
+            if (
+                motion_score > 8000000
+                and intrusion_confirmed
+                and time.time() - last_detection_time > COOLDOWN_INTRUSION
+            ):
+
+
+                annotated_frame = draw_detections(
+                    frame.copy(),
                     detection
-                ),
-                daemon=True
-            ).start()
+                )
 
-            time.sleep(1)  # éviter spam
+                if not detection["detected"]:
+                    prev_frame = gray
+                    cleanup_tracked_persons(camera_id)
+                    continue
 
-        cleanup_tracked_persons(camera_id)
+                print(
+                    f"YOLO : {detection['persons']} personne(s) "
+                    f"(confiance {detection['best_confidence']:.2f})"
+                )
 
-        prev_frame = gray
+                last_detection_time = time.time()
+
+                print("PERSONNE DÉTECTÉE PAR YOLO")
+
+                threading.Thread(
+                    target=create_alert_callback,
+                    args=(
+                        user_id,
+                        camera_id,
+                        triggered_zone_name,
+                        triggered_persons_count,
+                        triggered_intrusion_duration,
+                        detection
+                    ),
+                    daemon=True
+                ).start()
+
+                time.sleep(1)  # éviter spam
+
+            cleanup_tracked_persons(camera_id)
+
+            prev_frame = gray
+
+    finally:
+        with active_detection_lock:
+            active_detection_cameras.discard(camera_id)
+
+        print(
+            f"CAMÉRA {camera_id} : "
+            "détection arrêtée et réservation libérée."
+        )
+
+    return True
+
 
 def person_in_zone(box, zones):
 

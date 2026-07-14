@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import models
 
 from deps import get_db, get_current_user
-from intrusion import start_detection
+from intrusion import start_detection, stop_camera_detection
 from services.alert_service import create_alert
 
 
@@ -123,6 +123,8 @@ def delete_camera(
             detail="Caméra introuvable."
         )
 
+    stop_camera_detection(camera_id)
+
     db.delete(camera)
     db.commit()
 
@@ -168,13 +170,44 @@ def update_camera(
     if "description" in data:
         camera.description = data["description"]
 
-    if "status" in data:
-        camera.status = data["status"]
+    requested_status = data.get("status")
+
+    if requested_status is not None:
+        requested_status = requested_status.upper()
+
+        if requested_status not in {
+            "ACTIVE",
+            "INACTIVE"
+        }:
+            raise HTTPException(
+                status_code=400,
+                detail="Statut caméra invalide."
+            )
+
+        camera.status = requested_status
 
     db.commit()
     db.refresh(camera)
 
+    if requested_status == "INACTIVE":
+        stop_camera_detection(camera.id)
+
+    elif requested_status == "ACTIVE":
+        thread = threading.Thread(
+            target=start_detection,
+            args=(
+                camera.rtsp_url,
+                current_user.id,
+                camera.id,
+                create_alert
+            ),
+            daemon=True
+        )
+
+        thread.start()
+
     return {
         "message": "Caméra modifiée",
-        "camera_id": camera.id
+        "camera_id": camera.id,
+        "status": camera.status
     }
