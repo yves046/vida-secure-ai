@@ -151,7 +151,7 @@ def save_incident(
 
         conn.close()
 
-def find_open_incident(user_id, zone_name):
+def find_open_incident(user_id, camera_id, zone_name):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -159,11 +159,13 @@ def find_open_incident(user_id, zone_name):
         SELECT id
         FROM incidents
         WHERE user_id = ?
+        AND camera_id = ?
         AND zone_name = ?
         AND status = 'OPEN'
         LIMIT 1
     """, (
         user_id,
+        camera_id,
         zone_name
     ))
 

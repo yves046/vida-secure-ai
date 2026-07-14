@@ -1,3 +1,4 @@
+import sqlite3
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
@@ -9,7 +10,6 @@ import intrusion
 
 from intrusion import start_detection
 from incident_db import init_incident_db, close_old_incidents
-from zone_db import init_zone_db
 import time
 import models
 import threading
@@ -44,7 +44,6 @@ app.include_router(dashboard_router)
 app.include_router(payments_router)
 
 init_incident_db()
-init_zone_db()
 
 # ==========================================
 # File d'attente des incidents
@@ -56,18 +55,32 @@ import cv2
 
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
-def generate_frames():
+def generate_frames(camera_id):
 
-    zones = load_camera_zones(1)
+    state = intrusion.get_camera_state(camera_id)
+    frame_lock = state["frame_lock"]
+
+    zones = []
+    last_zones_reload = 0
+    ZONES_RELOAD_INTERVAL = 2
 
     while True:
 
-        if intrusion.latest_frame is None:
+        now = time.time()
+
+        if now - last_zones_reload >= ZONES_RELOAD_INTERVAL:
+            zones = load_camera_zones(camera_id)
+            last_zones_reload = now
+
+        with frame_lock:
+            if state["latest_frame"] is None:
+                frame = None
+            else:
+                frame = state["latest_frame"].copy()
+
+        if frame is None:
             time.sleep(0.01)
             continue
-
-        with intrusion.frame_lock:
-            frame = intrusion.latest_frame.copy()
 
         for zone in zones:
 
@@ -104,10 +117,11 @@ def generate_frames():
             + b"\r\n"
         )
 
-@app.get("/video_feed")
-def video_feed():
+
+@app.get("/video_feed/{camera_id}")
+def video_feed(camera_id: int):
     return StreamingResponse(
-        generate_frames(),
+        generate_frames(camera_id),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
@@ -152,16 +166,168 @@ def get_video(
     filename: str,
     current_user: models.User = Depends(get_current_user)
 ):
-    
+
     if not current_user.paid:
-        raise HTTPException(status_code=403, detail="Abonnement requis")
+        raise HTTPException(
+            status_code=403,
+            detail="Abonnement requis"
+        )
 
-    filepath = f"videos/{filename}"
+    safe_filename = os.path.basename(filename)
+    filepath = os.path.join("videos", safe_filename)
 
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Vidéo introuvable")
+    conn = sqlite3.connect("vida_incidents.db")
+    cursor = conn.cursor()
 
-    return FileResponse(filepath, media_type="video/mp4")
+    try:
+        cursor.execute(
+            """
+            SELECT id
+            FROM incidents
+            WHERE user_id = ?
+            AND (
+                video_path = ?
+                OR video_path = ?
+            )
+            LIMIT 1
+            """,
+            (
+                current_user.id,
+                safe_filename,
+                filepath
+            )
+        )
+
+        incident = cursor.fetchone()
+
+    finally:
+        conn.close()
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Vidéo introuvable"
+        )
+
+    if not os.path.isfile(filepath):
+        raise HTTPException(
+            status_code=404,
+            detail="Fichier vidéo introuvable"
+        )
+
+    return FileResponse(
+        filepath,
+        media_type="video/mp4",
+        filename=safe_filename
+    )
+
+@app.get("/secure-image/{filename}")
+def get_image(
+    filename: str,
+    current_user: models.User = Depends(get_current_user)
+):
+    if not current_user.paid:
+        raise HTTPException(
+            status_code=403,
+            detail="Abonnement requis"
+        )
+
+    safe_filename = os.path.basename(filename)
+
+    conn = sqlite3.connect("vida_incidents.db")
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT image_path
+            FROM incidents
+            WHERE user_id = ?
+            AND image_path = ?
+            LIMIT 1
+            """,
+            (current_user.id, safe_filename)
+        )
+
+        incident = cursor.fetchone()
+
+    finally:
+        conn.close()
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Image introuvable"
+        )
+
+    filepath = incident[0]
+
+    if not os.path.isfile(filepath):
+        raise HTTPException(
+            status_code=404,
+            detail="Fichier image introuvable"
+        )
+
+    return FileResponse(
+        filepath,
+        media_type="image/jpeg",
+        filename=safe_filename
+    )
+
+
+@app.get("/secure-pdf/{filename}")
+def get_pdf(
+    filename: str,
+    current_user: models.User = Depends(get_current_user)
+):
+    if not current_user.paid:
+        raise HTTPException(
+            status_code=403,
+            detail="Abonnement requis"
+        )
+
+    safe_filename = os.path.basename(filename)
+
+    conn = sqlite3.connect("vida_incidents.db")
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT pdf_path
+            FROM incidents
+            WHERE user_id = ?
+            AND pdf_path = ?
+            LIMIT 1
+            """,
+            (current_user.id, safe_filename)
+        )
+
+        incident = cursor.fetchone()
+
+    finally:
+        conn.close()
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="PDF introuvable"
+        )
+
+    filepath = incident[0]
+
+    if not os.path.isfile(filepath):
+        raise HTTPException(
+            status_code=404,
+            detail="Fichier PDF introuvable"
+        )
+
+    return FileResponse(
+        filepath,
+        media_type="application/pdf",
+        filename=safe_filename
+    )
+
 
 def incident_maintenance():
      
@@ -203,6 +369,7 @@ def start_camera():
             args=(
                 camera.rtsp_url,
                 camera.user_id,
+                camera.id,
                 create_alert
             )
         )

@@ -89,6 +89,7 @@ def add_camera(
         args=(
             camera.rtsp_url,
             current_user.id,
+            camera.id,
             create_alert
         ),
         daemon=True

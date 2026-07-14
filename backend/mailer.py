@@ -18,29 +18,86 @@ def send_alert(
 
     msg = EmailMessage()
 
-    msg["Subject"] = f"ALERTE INTRUSION {timestamp}"
+    msg["Subject"] = (
+        f"ALERTE VIDA SECURE AI - {timestamp}"
+    )
+
     msg["From"] = EMAIL_SENDER
     msg["To"] = to_email
 
-    msg.set_content(f"""
+    msg.set_content(
+        f"""
 ALERTE VIDA SECURE AI
+
+Une intrusion a été détectée.
 
 Date : {timestamp}
 
 Durée intrusion : {intrusion_duration} secondes
 
-Nombre maximal de personnes :
+Nombre maximal de personnes détectées :
 {persons_count}
 
-Vidéo :
-{video_path}
+Veuillez consulter les pièces jointes :
 
-Rapport :
-{pdf_path}
-""")
+• Rapport PDF VIDA
+• Capture d'écran de l'intrusion
+• Vidéo de l'intrusion
+"""
+    )
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(EMAIL_SENDER, APP_PASSWORD)
-        smtp.send_message(msg)
+    if os.path.exists(pdf_path):
+        with open(pdf_path, "rb") as f:
+            msg.add_attachment(
+                f.read(),
+                maintype="application",
+                subtype="pdf",
+                filename=os.path.basename(pdf_path)
+            )
 
-    print("EMAIL ENVOYÉ")
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            msg.add_attachment(
+                f.read(),
+                maintype="image",
+                subtype="jpeg",
+                filename=os.path.basename(image_path)
+            )
+
+    if os.path.exists(video_path):
+        with open(video_path, "rb") as f:
+            msg.add_attachment(
+                f.read(),
+                maintype="video",
+                subtype="mp4",
+                filename=os.path.basename(video_path)
+            )
+
+    try:
+        with smtplib.SMTP_SSL(
+            "smtp.gmail.com",
+            465,
+            timeout=20
+        ) as smtp:
+
+            smtp.login(
+                EMAIL_SENDER,
+                APP_PASSWORD
+            )
+
+            print("Nombre de pièces jointes :", len(msg.get_payload()))
+
+            for part in msg.iter_attachments():
+                print(
+                    "PJ :",
+                    part.get_filename(),
+                    part.get_content_type(),
+                    len(part.get_payload(decode=True))
+                )
+
+            smtp.send_message(msg)
+
+        print("EMAIL ENVOYÉ")
+
+    except Exception as e:
+        print("ERREUR EMAIL :", e)

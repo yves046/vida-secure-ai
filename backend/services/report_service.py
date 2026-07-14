@@ -12,28 +12,23 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-def create_pdf_report(image_path):
+def create_pdf_report(
+    image_path,
+    incident_id,
+    client_name,
+    site_name,
+    zone_name,
+    persons_count,
+    intrusion_duration,
+    alert_level
+):
 
     timestamp = int(time.time())
 
     pdf_name = f"rapport_{timestamp}.pdf"
 
-    client_name = "VIDA DEMO"
-    site_name = "Site Principal"
-    zone_name = "Zone 1"
-    license_id = "VIDA-DEMO"
+    license_id = f"VIDA-CAMERA-{incident_id}"
 
-    persons_count = 1
-    intrusion_duration = 0
-
-    incident_id = f"VIDA-{timestamp}"
-
-    if persons_count >= 3:
-        alert_level = "CRITIQUE"
-    elif persons_count == 2:
-        alert_level = "ÉLEVÉ"
-    else:
-        alert_level = "MODÉRÉ"
 
     pdf = SimpleDocTemplate(
         pdf_name,

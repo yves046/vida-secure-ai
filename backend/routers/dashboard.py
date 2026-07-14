@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -97,9 +98,21 @@ def get_alerts(
             "zone": row["zone_name"],
             "persons": row["persons_count"],
             "timestamp": row["timestamp"],
-            "image": row["image_path"],
-            "video": row["video_path"],
-            "pdf": row["pdf_path"]
+            "image": (
+                f"/secure-image/{os.path.basename(row['image_path'])}"
+                if row["image_path"]
+                else None
+            ),
+            "video": (
+                f"/secure-video/{os.path.basename(row['video_path'])}"
+                if row["video_path"]
+                else None
+            ),
+            "pdf": (
+                f"/secure-pdf/{os.path.basename(row['pdf_path'])}"
+                if row["pdf_path"]
+                else None
+            )
         }
         for row in incidents
     ]
