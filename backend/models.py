@@ -37,7 +37,10 @@ class Camera(Base):
     site_name = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
-    # État
+    # État administratif
+    is_enabled = Column(Boolean, nullable=False, default=True)
+
+    # État technique du flux
     status = Column(String, default="ACTIVE")
 
     description = Column(String, nullable=True)

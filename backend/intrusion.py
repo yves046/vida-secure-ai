@@ -65,6 +65,37 @@ def stop_camera_detection(camera_id):
     return True
 
 
+def wait_for_camera_detection_stop(
+    camera_id,
+    timeout=10,
+    check_interval=0.1
+):
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+
+        with active_detection_lock:
+            is_active = (
+                camera_id in active_detection_cameras
+            )
+
+        if not is_active:
+            print(
+                f"CAMÉRA {camera_id} : "
+                "arrêt réel confirmé."
+            )
+            return True
+
+        time.sleep(check_interval)
+
+    print(
+        f"CAMÉRA {camera_id} : "
+        f"arrêt non confirmé après {timeout} secondes."
+    )
+
+    return False
+
+
 def capture_camera(cap, camera_id, rtsp_url):
 
     state = get_camera_state(camera_id)
@@ -105,7 +136,8 @@ def capture_camera(cap, camera_id, rtsp_url):
                     f"tentative de reconnexion dans {reconnect_delay} secondes."
                 )
 
-                time.sleep(reconnect_delay)
+                if stop_event.wait(reconnect_delay):
+                    break
 
                 new_cap = cv2.VideoCapture(rtsp_url)
 
@@ -118,6 +150,10 @@ def capture_camera(cap, camera_id, rtsp_url):
                 if not ret or frame is None:
                     new_cap.release()
                     continue
+
+                if stop_event.is_set():
+                    new_cap.release()
+                    break
 
                 cap = new_cap
                 consecutive_failures = 0
@@ -214,6 +250,16 @@ def update_camera_status(camera_id, status):
             )
             return False
 
+        if (
+            status == "ACTIVE"
+            and not camera.is_enabled
+        ):
+            print(
+                f"CAMÉRA {camera_id} : "
+                "passage à ACTIVE refusé car la caméra est désactivée."
+            )
+            return False
+
         camera.status = status
         db.commit()
 
@@ -273,6 +319,10 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
             ret, first_frame = cap.read()
 
             if ret and first_frame is not None:
+                if stop_event.is_set():
+                    cap.release()
+                    break
+
                 break
 
         cap.release()
@@ -299,6 +349,19 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
         print(
             f"CAMÉRA {camera_id} : "
             "démarrage annulé avant connexion RTSP."
+        )
+
+        return False
+
+    if stop_event.is_set():
+        cap.release()
+
+        with active_detection_lock:
+            active_detection_cameras.discard(camera_id)
+
+        print(
+            f"CAMÉRA {camera_id} : "
+            "démarrage annulé avant activation."
         )
 
         return False

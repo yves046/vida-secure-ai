@@ -348,7 +348,7 @@ def start_camera():
     try:
         cameras = (
             db.query(models.Camera)
-            .filter(models.Camera.status != "INACTIVE")
+            .filter(models.Camera.is_enabled.is_(True))
             .all()
         )
     finally:
