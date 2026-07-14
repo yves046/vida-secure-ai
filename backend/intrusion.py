@@ -31,19 +31,75 @@ def get_camera_state(camera_id):
 
         return camera_states[camera_id]
 
-def capture_camera(cap, camera_id):
+def capture_camera(cap, camera_id, rtsp_url):
 
     state = get_camera_state(camera_id)
     frame_lock = state["frame_lock"]
     ai_queue = state["ai_queue"]
 
+    consecutive_failures = 0
+    max_failures = 10
+    reconnect_delay = 5
+
     while True:
 
         ret, frame = cap.read()
 
-        if not ret:
-            time.sleep(0.1)
-            continue
+        if not ret or frame is None:
+            consecutive_failures += 1
+
+            if consecutive_failures < max_failures:
+                time.sleep(0.1)
+                continue
+
+            print(
+                f"CAMÉRA {camera_id} HORS LIGNE : "
+                f"{consecutive_failures} lectures consécutives échouées."
+            )
+
+            update_camera_status(camera_id, "OFFLINE")
+
+            with frame_lock:
+                state["latest_frame"] = None
+
+            cap.release()
+
+            while True:
+                print(
+                    f"CAMÉRA {camera_id} : "
+                    f"tentative de reconnexion dans {reconnect_delay} secondes."
+                )
+
+                time.sleep(reconnect_delay)
+
+                new_cap = cv2.VideoCapture(rtsp_url)
+
+                if not new_cap.isOpened():
+                    new_cap.release()
+                    continue
+
+                ret, frame = new_cap.read()
+
+                if not ret or frame is None:
+                    new_cap.release()
+                    continue
+
+                cap = new_cap
+                consecutive_failures = 0
+
+                with frame_lock:
+                    state["latest_frame"] = frame.copy()
+
+                update_camera_status(camera_id, "ACTIVE")
+
+                print(
+                    f"CAMÉRA {camera_id} RECONNECTÉE AVEC SUCCÈS."
+                )
+
+                break
+
+        else:
+            consecutive_failures = 0
 
         with frame_lock:
             state["latest_frame"] = frame.copy()
@@ -99,6 +155,47 @@ def ai_worker(camera_id):
         except Exception:
             pass
 
+def update_camera_status(camera_id, status):
+    from database import SessionLocal
+    from models import Camera
+
+    db = SessionLocal()
+
+    try:
+        camera = (
+            db.query(Camera)
+            .filter(Camera.id == camera_id)
+            .first()
+        )
+
+        if camera is None:
+            print(
+                f"CAMÉRA {camera_id} INTROUVABLE : "
+                f"statut {status} non enregistré."
+            )
+            return False
+
+        camera.status = status
+        db.commit()
+
+        print(
+            f"CAMÉRA {camera_id} : "
+            f"STATUT = {status}"
+        )
+
+        return True
+
+    except Exception as exc:
+        db.rollback()
+        print(
+            f"ERREUR STATUT CAMÉRA {camera_id} : {exc}"
+        )
+        return False
+
+    finally:
+        db.close()
+
+
 def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
     state = get_camera_state(camera_id)
 
@@ -109,9 +206,34 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
 
     cap = cv2.VideoCapture(rtsp_url)
 
+    if not cap.isOpened():
+        print(
+            f"CAMÉRA {camera_id} HORS LIGNE : "
+            "impossible d'ouvrir le flux RTSP."
+        )
+        update_camera_status(camera_id, "OFFLINE")
+        cap.release()
+        return False
+
+    ret, first_frame = cap.read()
+
+    if not ret or first_frame is None:
+        print(
+            f"CAMÉRA {camera_id} HORS LIGNE : "
+            "aucune image reçue du flux RTSP."
+        )
+        update_camera_status(camera_id, "OFFLINE")
+        cap.release()
+        return False
+
+    with frame_lock:
+        state["latest_frame"] = first_frame.copy()
+
+    update_camera_status(camera_id, "ACTIVE")
+
     capture_thread = threading.Thread(
         target=capture_camera,
-        args=(cap, camera_id),
+        args=(cap, camera_id, rtsp_url),
         daemon=True
     )
 
@@ -154,11 +276,14 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
             last_zones_reload = now
 
         with frame_lock:
-            if state["latest_frame"] is None:
-                time.sleep(0.01)
-                continue
+            latest_frame = state["latest_frame"]
 
-            frame = state["latest_frame"].copy()
+            if latest_frame is not None:
+                frame = latest_frame.copy()
+
+        if latest_frame is None:
+            time.sleep(0.1)
+            continue
 
         frame_buffer.append(frame.copy())
 

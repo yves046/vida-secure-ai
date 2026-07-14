@@ -48,8 +48,22 @@ def get_stats(
 
     conn.close()
 
+    from database import SessionLocal
+    from models import Camera
+
+    db = SessionLocal()
+
+    try:
+        total_cameras = (
+            db.query(Camera)
+            .filter(Camera.user_id == user.id)
+            .count()
+        )
+    finally:
+        db.close()
+
     return {
-        "cameras": 1,
+        "cameras": total_cameras,
         "alerts": total_alerts,
         "status": "ACTIVE",
         "paid": user.paid
