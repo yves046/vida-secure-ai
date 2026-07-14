@@ -262,33 +262,44 @@ def start_detection(rtsp_url, user_id, camera_id, create_alert_callback):
 
     stop_event.clear()
 
-    cap = cv2.VideoCapture(rtsp_url)
+    reconnect_delay = 5
+    offline_status_set = False
 
-    if not cap.isOpened():
-        print(
-            f"CAMÉRA {camera_id} HORS LIGNE : "
-            "impossible d'ouvrir le flux RTSP."
-        )
-        update_camera_status(camera_id, "OFFLINE")
+    while not stop_event.is_set():
+
+        cap = cv2.VideoCapture(rtsp_url)
+
+        if cap.isOpened():
+            ret, first_frame = cap.read()
+
+            if ret and first_frame is not None:
+                break
+
         cap.release()
 
+        if not offline_status_set:
+            print(
+                f"CAMÉRA {camera_id} HORS LIGNE : "
+                "flux RTSP inaccessible au démarrage."
+            )
+            update_camera_status(camera_id, "OFFLINE")
+            offline_status_set = True
+
+        print(
+            f"CAMÉRA {camera_id} : "
+            f"nouvelle tentative dans {reconnect_delay} secondes."
+        )
+
+        stop_event.wait(reconnect_delay)
+
+    else:
         with active_detection_lock:
             active_detection_cameras.discard(camera_id)
 
-        return False
-
-    ret, first_frame = cap.read()
-
-    if not ret or first_frame is None:
         print(
-            f"CAMÉRA {camera_id} HORS LIGNE : "
-            "aucune image reçue du flux RTSP."
+            f"CAMÉRA {camera_id} : "
+            "démarrage annulé avant connexion RTSP."
         )
-        update_camera_status(camera_id, "OFFLINE")
-        cap.release()
-
-        with active_detection_lock:
-            active_detection_cameras.discard(camera_id)
 
         return False
 
