@@ -9,3 +9,5 @@ opencv-python-headless
 sqlalchemy
 python-jose
 passlib[bcrypt]
+
+ultralytics==8.4.59
