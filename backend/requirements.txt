@@ -10,4 +10,5 @@ sqlalchemy
 python-jose
 passlib[bcrypt]
 
+reportlab
 ultralytics==8.4.59
